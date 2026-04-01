@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>本地化排期计算器</title>
+  <style>
+    body {
+      font-family: Arial;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f7f7f7;
+    }
+    h2 { text-align: center; }
+    label { display: block; margin-top: 15px; }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px;
+      width: 100%;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      background: white;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>🎮 本地化排期计算器</h2>
+
+<label>字数</label>
+<input type="number" id="wordCount" value="100000">
+
+<label>质量等级</label>
+<select id="tier">
+  <option value="1">C级（AI）</option>
+  <option value="15">B级</option>
+  <option value="20" selected>A级</option>
+  <option value="25">S级</option>
+</select>
+
+<label>语言数量</label>
+<input type="number" id="langCount" value="5">
+
+<label>复杂度</label>
+<select id="complexity">
+  <option value="0.8">简单</option>
+  <option value="1" selected>中等</option>
+  <option value="1.3">复杂</option>
+</select>
+
+<label>并行程度</label>
+<select id="parallel">
+  <option value="0.8">低</option>
+  <option value="1" selected>标准</option>
+  <option value="1.3">高</option>
+</select>
+
+<label>是否包含LQA</label>
+<select id="lqa">
+  <option value="0">否</option>
+  <option value="1">是</option>
+</select>
+
+<label>LQA模式</label>
+<select id="lqaMode">
+  <option value="serial">串行（翻译后再LQA）</option>
+  <option value="parallel">并行（同时进行）</option>
+</select>
+
+<button onclick="calculate()">计算工期</button>
+
+<div class="result" id="result">
+  结果将在这里显示
+</div>
+
+<script>
+
+// 语言系数
+function getLangFactor(count) {
+  if (count === 1) return 1.0;
+  if (count <= 4) return 1.2;
+  if (count <= 8) return 1.3;
+  if (count <= 15) return 1.5;
+  return 1.7;
+}
+
+// LQA工期计算
+function getLQADays(wordCount) {
+  if (wordCount <= 100000) return 10.5;
+  if (wordCount <= 200000) return 21;
+  if (wordCount <= 300000) return 28;
+
+  // 超过部分按比例
+  return (wordCount / 100000) * 10;
+}
+
+function calculate() {
+  const wordCount = parseFloat(document.getElementById("wordCount").value);
+  const baseDays = parseFloat(document.getElementById("tier").value);
+  const langCount = parseFloat(document.getElementById("langCount").value);
+  const complexity = parseFloat(document.getElementById("complexity").value);
+  const parallel = parseFloat(document.getElementById("parallel").value);
+  const includeLQA = parseFloat(document.getElementById("lqa").value);
+  const mode = document.getElementById("lqaMode").value;
+
+  const wordFactor = wordCount / 100000;
+  const langFactor = getLangFactor(langCount);
+
+  // 文本工期
+  const textDays = baseDays * wordFactor * complexity * langFactor / parallel;
+
+  // LQA工期
+  let lqaDays = 0;
+  if (includeLQA === 1) {
+    lqaDays = getLQADays(wordCount);
+  }
+
+  // 总工期
+  let totalDays = 0;
+  if (mode === "serial") {
+    totalDays = textDays + lqaDays;
+  } else {
+    totalDays = Math.max(textDays, lqaDays);
+  }
+
+  document.getElementById("result").innerHTML = `
+    📊 计算结果：<br><br>
+    文本工期：<b>${textDays.toFixed(1)} 天</b><br>
+    LQA工期：<b>${lqaDays.toFixed(1)} 天</b><br>
+    ------------------<br>
+    总工期：<b>${totalDays.toFixed(1)} 天</b><br>
+    （约 ${Math.ceil(totalDays)} 天交付）<br><br>
+    📌 说明：<br>
+    - 字数系数：${wordFactor.toFixed(2)}<br>
+    - 语言系数：${langFactor}<br>
+    - 并行系数：${parallel}<br>
+    - LQA模式：${mode === "serial" ? "串行" : "并行"}
+  `;
+}
+
+</script>
+
+</body>
+</html>
