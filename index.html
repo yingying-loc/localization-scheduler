@@ -1,157 +1,2015 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <title>本地化排期计算器</title>
-  <style>
-    body {
-      font-family: Arial;
-      max-width: 600px;
-      margin: 40px auto;
-      padding: 20px;
-      background: #f7f7f7;
-    }
-    h2 { text-align: center; }
-    label { display: block; margin-top: 15px; }
-    input, select {
-      width: 100%;
-      padding: 8px;
-      margin-top: 5px;
-    }
-    button {
-      margin-top: 20px;
-      padding: 10px;
-      width: 100%;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-    .result {
-      margin-top: 20px;
-      padding: 15px;
-      background: white;
-      border-radius: 5px;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L10N Scheduler · 本地化排期估算</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080c12;--bg1:#0d1420;--bg2:#111927;--bg3:#16202e;--bg4:#1c2a3d;
+  --line:rgba(255,255,255,0.07);--line2:rgba(255,255,255,0.13);
+  --accent:#00c2ff;--accent-dim:#00c2ff1a;--accent-glow:#00c2ff40;
+  --amber:#f5a623;--amber-dim:#f5a62318;
+  --green:#00e5a0;--green-dim:#00e5a015;
+  --red:#ff4d6d;--red-dim:#ff4d6d18;
+  --purple:#a78bfa;--purple-dim:#a78bfa18;
+  --t1:#e8f0fc;--t2:#8899b4;--t3:#4a5a72;--t4:#2a3a52;
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;--r:3px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px;box-sizing:border-box}
+body{background:var(--bg);color:var(--t1);font-family:var(--sans);font-weight:300;min-height:100vh;line-height:1.6;overflow-x:hidden}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg1)}::-webkit-scrollbar-thumb{background:#0077b6;border-radius:2px}
+
+.hdr{border-bottom:1px solid var(--line2);padding:13px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;background:var(--bg)}
+.hdr-inner{width:100%;max-width:1440px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
+.hdr-logo{font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:.12em;display:flex;align-items:center;gap:10px}
+.hdr-logo::before{content:'';width:7px;height:7px;background:var(--accent);border-radius:50%;box-shadow:0 0 7px var(--accent);animation:blink 2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.hdr-r{display:flex;align-items:center;gap:16px}
+.hdr-ver{font-family:var(--mono);font-size:11px;color:var(--t3);letter-spacing:.06em}
+
+.layout{display:grid;grid-template-columns:380px 1fr;min-height:calc(100vh - 47px);width:100%}
+.sidebar{border-right:1px solid var(--line);padding:16px 16px 72px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;min-width:0}
+.main{padding:16px 16px 72px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;min-width:0}
+
+/* STEP */
+.step{border:1px solid var(--line);border-radius:var(--r);background:var(--bg1);overflow:hidden;transition:border-color .2s}
+.step.active{border-color:rgba(0,194,255,.35)}
+.step-head{padding:9px 13px;background:var(--bg2);border-bottom:1px solid transparent;display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none;transition:background .15s}
+.step-head:hover{background:var(--bg3)}
+.step.open .step-head{border-bottom-color:var(--line)}
+.step-num{font-family:var(--mono);font-size:10px;width:20px;height:20px;border-radius:50%;border:1px solid var(--t4);display:flex;align-items:center;justify-content:center;color:var(--t3);flex-shrink:0;transition:all .15s}
+.step.active .step-num{border-color:var(--accent);color:var(--accent);box-shadow:0 0 5px var(--accent-glow)}
+.step-bar{width:2px;height:12px;border-radius:1px;flex-shrink:0}
+.step-title{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);flex:1}
+.step.active .step-title,.step.open .step-title{color:var(--t2)}
+.step-sum{font-family:var(--mono);font-size:10px;color:var(--t3)}
+.step-body{padding:13px;display:none}
+.step.open .step-body{display:block}
+
+/* FIELDS */
+.fl{display:flex;flex-direction:column;gap:4px;margin-bottom:9px}
+.fl:last-child{margin-bottom:0}
+.lbl{font-size:11px;color:var(--t3);font-family:var(--mono);letter-spacing:.05em}
+.fl input[type=number],.fl select{background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--t1);font-family:var(--mono);font-size:13px;padding:7px 10px;width:100%;outline:none;transition:border-color .15s}
+.fl input:focus,.fl select:focus{border-color:var(--accent)}
+.fl select option{background:var(--bg2)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+
+.range-row{display:flex;align-items:center;gap:10px}
+.range-row input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--bg3);border-radius:2px;outline:none;border:none;padding:0}
+.range-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--accent);box-shadow:0 0 5px var(--accent);cursor:pointer}
+.rv{font-family:var(--mono);font-size:12px;color:var(--accent);min-width:36px;text-align:right}
+
+.tg-grp{display:flex;flex-wrap:wrap;gap:5px}
+.tgl{font-family:var(--mono);font-size:11px;padding:3px 9px;border:1px solid var(--line2);border-radius:2px;cursor:pointer;color:var(--t3);background:var(--bg2);letter-spacing:.04em;transition:all .12s;user-select:none}
+.tgl:hover{border-color:var(--t2);color:var(--t2)}
+.tgl.on{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+
+.radio-grp{display:flex;gap:5px;flex-wrap:wrap}
+.rbtn{font-family:var(--mono);font-size:11px;padding:5px 12px;border:1px solid var(--line2);border-radius:2px;cursor:pointer;color:var(--t3);background:var(--bg2);letter-spacing:.04em;transition:all .12s;user-select:none}
+.rbtn:hover{border-color:var(--t2);color:var(--t2)}
+.rbtn.on{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+.rbtn.on-am{background:var(--amber-dim);border-color:var(--amber);color:var(--amber)}
+
+.sw-row{display:flex;align-items:center;gap:9px;padding:5px 7px;border-radius:var(--r);cursor:pointer;transition:background .1s}
+.sw-row:hover{background:var(--bg3)}
+.sw{width:30px;height:17px;border:1px solid var(--line2);border-radius:9px;position:relative;transition:all .15s;flex-shrink:0;background:var(--bg3)}
+.sw.on{background:var(--accent-dim);border-color:var(--accent)}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:var(--t3);transition:all .15s}
+.sw.on::after{left:15px;background:var(--accent);box-shadow:0 0 4px var(--accent)}
+.sw-lbl{font-size:12px;color:var(--t2)}
+.sw-sep{height:1px;background:var(--line);margin:7px 0}
+.sw-grp-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--t3);text-transform:uppercase;padding:3px 7px 1px}
+
+.notice{padding:7px 11px;border-radius:var(--r);font-size:12px;border-left:2px solid;line-height:1.6}
+.ni{background:var(--accent-dim);color:#7dd3fc;border-color:var(--accent)}
+.nw{background:var(--amber-dim);color:var(--amber);border-color:var(--amber)}
+.ng{background:var(--green-dim);color:var(--green);border-color:var(--green)}
+
+.hint{background:var(--bg3);border:1px solid var(--line);border-left:2px solid var(--accent);border-radius:0 var(--r) var(--r) 0;padding:8px 11px;margin-top:7px}
+.hr{display:flex;justify-content:space-between;gap:8px;padding:2px 0}
+.hl{font-size:11px;color:var(--t3)}
+.hv{font-family:var(--mono);font-size:11px;color:var(--t2)}
+
+.stag{font-family:var(--mono);font-size:10px;padding:2px 8px;border:1px solid var(--line2);border-radius:2px;cursor:pointer;color:var(--t3);background:var(--bg2);transition:all .1s;display:inline-block;margin:2px 2px 0 0}
+.stag:hover{border-color:var(--accent);color:var(--accent)}
+
+.div{height:1px;background:var(--line);margin:9px 0}
+.mt8{margin-top:8px}
+.mt10{margin-top:10px}
+
+/* MAIN AREA */
+.sec{border:1px solid var(--line);border-radius:var(--r);background:var(--bg1);overflow:hidden}
+.sec-head{padding:9px 13px;background:var(--bg2);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.sec-bar{width:2px;height:13px;border-radius:1px;flex-shrink:0}
+.sec-title{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3)}
+.sec-body{padding:13px}
+
+.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.metric{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:13px;position:relative;overflow:hidden}
+.metric::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.m-acc::before{background:var(--accent)}.m-amb::before{background:var(--amber)}.m-pur::before{background:var(--purple)}.m-grn::before{background:var(--green)}
+.metric-val{font-family:var(--mono);font-size:24px;font-weight:500;line-height:1.1}
+.m-acc .metric-val{color:var(--accent)}.m-amb .metric-val{color:var(--amber)}.m-pur .metric-val{color:var(--purple)}.m-grn .metric-val{color:var(--green)}
+.metric-lbl{font-size:11px;color:var(--t3);margin-top:4px}
+
+.pbar{margin-bottom:7px}
+.pbar-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.pbar-name{font-size:12px;color:var(--t2);display:flex;align-items:center;gap:6px}
+.pbar-tag{font-family:var(--mono);font-size:9px;letter-spacing:.07em;padding:1px 6px;border-radius:2px;text-transform:uppercase}
+.tag-pre{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,166,35,.3)}
+.tag-core{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,194,255,.3)}
+.tag-post{background:var(--green-dim);color:var(--green);border:1px solid rgba(0,229,160,.3)}
+.pbar-days{font-family:var(--mono);font-size:12px;color:var(--t1)}
+.pbar-track{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:2px;transition:width .5s cubic-bezier(.16,1,.3,1)}
+
+.lang-item{display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:1px solid var(--line)}
+.lang-item:last-child{border-bottom:none}
+.lang-name{font-size:12px;color:var(--t2);flex:0 0 84px}
+.tier-b{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:2px;flex-shrink:0}
+.tA{background:var(--green-dim);color:var(--green);border:1px solid rgba(0,229,160,.25)}
+.tB{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,166,35,.25)}
+.tC{background:var(--red-dim);color:var(--red);border:1px solid rgba(255,77,109,.25)}
+.lang-bw{flex:1}.lang-bt{height:3px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.lang-bf{height:100%;border-radius:2px;background:var(--accent);opacity:.55;transition:width .4s}
+.lang-d{font-family:var(--mono);font-size:12px;color:var(--t2);min-width:40px;text-align:right}
+
+.ms-item{display:flex;align-items:flex-start;gap:11px;padding:8px 0;border-bottom:1px solid var(--line)}
+.ms-item:last-child{border-bottom:none}
+.ms-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.ms-name{font-size:13px;color:var(--t1)}
+.ms-day{font-family:var(--mono);font-size:11px;color:var(--t3);margin-top:1px}
+
+.price-item{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--line);gap:10px}
+.price-item:last-child{border-bottom:none}
+.pl-name{font-size:12px;color:var(--t2)}
+.pl-formula{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:2px}
+.pv{font-family:var(--mono);font-size:13px;color:var(--t1);white-space:nowrap}
+.price-total{display:flex;justify-content:space-between;align-items:center;padding:11px 0 0;border-top:1px solid var(--line2);margin-top:4px}
+.pt-lbl{font-size:12px;color:var(--t2)}.pt-val{font-family:var(--mono);font-size:20px;color:var(--green);font-weight:500}
+
+.ql-badge{display:inline-flex;align-items:center;gap:8px;padding:3px 11px;border-radius:2px;font-family:var(--mono);font-size:11px;letter-spacing:.07em}
+.ql-C{background:rgba(74,90,114,.15);border:1px solid var(--t3);color:var(--t2)}
+.ql-B{background:var(--amber-dim);border:1px solid var(--amber);color:var(--amber)}
+.ql-A{background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent)}
+.ql-S{background:var(--purple-dim);border:1px solid var(--purple);color:var(--purple)}
+
+.btn{font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;padding:7px 14px;border:1px solid var(--line2);border-radius:2px;background:var(--bg2);color:var(--t2);cursor:pointer;transition:all .15s}
+.btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.btn-p{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.btn-row{display:flex;gap:7px;margin-top:11px}
+
+/* per-lang table */
+.lang-rate-table{width:100%;border-collapse:collapse;margin-top:6px}
+.lang-rate-table th{font-family:var(--mono);font-size:10px;color:var(--t3);text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);letter-spacing:.05em}
+.lang-rate-table td{padding:4px 6px;border-bottom:1px solid var(--line)}
+.lang-rate-table tr:last-child td{border-bottom:none}
+.lang-rate-table input{background:var(--bg3);border:1px solid var(--line2);border-radius:2px;color:var(--t1);font-family:var(--mono);font-size:12px;padding:4px 7px;width:80px;outline:none}
+.lang-rate-table input:focus{border-color:var(--accent)}
+.ref-range{font-family:var(--mono);font-size:10px;color:var(--t3)}
+
+body::after{content:'';position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.02) 2px,rgba(0,0,0,.02) 4px);z-index:9999}
+.empty{font-family:var(--mono);font-size:11px;color:var(--t3);padding:9px 0;letter-spacing:.04em}
+.lang-rate-row td{border-bottom:1px solid var(--line)}
+.lang-rate-row:last-child td{border-bottom:none}
+.lang-rate-row:hover td{background:var(--bg3)}
+
+
+/* ── Responsive ── */
+@media(max-width:1200px){
+  .layout{grid-template-columns:320px 1fr}
+}
+@media(max-width:700px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{border-right:none;border-bottom:1px solid var(--line);max-height:none}
+  .main{padding-bottom:80px}
+  .dash-inner{flex-direction:column!important}
+  .dash-phases{min-width:unset!important;width:100%}
+}
+@media(max-width:700px){
+  .hdr-logo{font-size:11px}
+  .hdr-ver{font-size:10px}
+  html{font-size:13px}
+  .dash-bar-wrap{display:none!important}
+  .dash-phase-row{gap:6px!important}
+  .dash-cost{min-width:70px!important;font-size:10px!important}
+}
+@media(max-width:480px){
+  .hdr-ver{display:none}
+  .sec-body{padding:10px}
+  .metric-val{font-size:28px}
+}
+</style>
 </head>
-
 <body>
+<header class="hdr">
+  <div class="hdr-inner">
+    <div class="hdr-logo">L10N Scheduler</div>
+    <div class="hdr-r"><div class="hdr-ver">v3.0 · 向导式排期 & 报价估算</div></div>
+  </div>
+</header>
+<div class="layout">
+<aside class="sidebar">
 
-<h2>🎮 本地化排期计算器</h2>
+<!-- S1 质量 & 文本 -->
+<div class="step open active" id="step1">
+  <div class="step-head" onclick="toggleStep('step1')">
+    <div class="step-num">01</div>
+    <div class="step-bar" style="background:var(--accent);box-shadow:0 0 4px var(--accent)"></div>
+    <div class="step-title">质量等级 & 文本规模</div>
+    <div class="step-sum" id="s1-sum">—</div>
+  </div>
+  <div class="step-body">
+    <div class="g2" style="margin-bottom:10px">
+      <div class="fl">
+        <div class="lbl">游戏类型</div>
+        <div class="radio-grp" id="term-type-grp-s1">
+          <span class="rbtn" data-v="light"  onclick="setTermType('light')">轻度（SLG/休闲）</span>
+          <span class="rbtn on" data-v="medium" onclick="setTermType('medium')">中重度（RPG/二游）</span>
+          <span class="rbtn" data-v="heavy"  onclick="setTermType('heavy')">强IP/重叙事</span>
+        </div>
+      </div>
 
-<label>字数</label>
-<input type="number" id="wordCount" value="100000">
+    </div>
+    <div class="g2">
+      <div class="fl">
+        <div class="lbl">质量等级</div>
+        <select id="qlevel" onchange="onQlChange()">
+          <option value="B" selected>B — 基础可用</option>
+          <option value="A">A — 行业标准</option>
+        </select>
+      </div>
+      <div class="fl">
+        <div class="lbl">源文本量（字符）</div>
+        <input type="number" id="wc" oninput="onWcChange()" value="100000" min="1000" step="10000" oninput="onWcChange()">
+      </div>
+    </div>
+    <div class="fl mt8">
+      <div class="lbl">TM Leverage</div>
+      <div class="range-row">
+        <input type="range" id="tm" oninput="document.getElementById('tmo').textContent=this.value+'%';onWcChange()" min="0" max="80" value="0" step="5" oninput="document.getElementById('tmo').textContent=this.value+'%';onWcChange()">
+        <span class="rv" id="tmo">0%</span>
+      </div>
+    </div>
+    <div id="ql-hint" class="hint mt8"></div>
 
-<label>质量等级</label>
-<select id="tier">
-  <option value="1">C级（AI）</option>
-  <option value="15">B级</option>
-  <option value="20" selected>A级</option>
-  <option value="25">S级</option>
-</select>
+  </div>
+</div>
 
-<label>语言数量</label>
-<input type="number" id="langCount" value="5">
+<!-- S2 语言 -->
+<div class="step open" id="step2">
+  <div class="step-head" onclick="toggleStep('step2')">
+    <div class="step-num">02</div>
+    <div class="step-bar" style="background:var(--purple);box-shadow:0 0 4px var(--purple)"></div>
+    <div class="step-title">源语言 & 目标语言</div>
+    <div class="step-sum" id="s2-sum">—</div>
+  </div>
+  <div class="step-body">
+    <div class="fl">
+      <div class="lbl">源语言</div>
+      <select id="src-lang" onchange="onSrcChange()">
+      <option value="zh-CN" selected>简体中文（ZH-CN）</option>
+      <option value="en">英语（EN）</option>
+    </select>
+    </div>
+    <div class="fl mt8">
+      <div class="lbl">目标语言</div>
+      <div class="tg-grp" id="langsel">
+        <span class="tgl" data-lang="zh-CN">简中</span>
+        <span class="tgl" data-lang="zh-TW">繁中</span>
+        <span class="tgl" data-lang="ja">日语</span>
+        <span class="tgl" data-lang="ko">韩语</span>
+        <span class="tgl on" data-lang="en">英语</span>
+        <span class="tgl" data-lang="de">德语</span>
+        <span class="tgl" data-lang="fr">法语</span>
+        <span class="tgl" data-lang="es">西语</span>
+        <span class="tgl" data-lang="pt-BR">葡语BR</span>
+        <span class="tgl" data-lang="it">意语</span>
+        <span class="tgl" data-lang="ru">俄语</span>
+        <span class="tgl" data-lang="ar">阿语</span>
+        <span class="tgl" data-lang="th">泰语</span>
+        <span class="tgl" data-lang="id">印尼语</span>
+        <span class="tgl" data-lang="vi">越南语</span>
+        <span class="tgl" data-lang="tr">土耳其语</span>
+      </div>
+    </div>
+  </div>
+</div>
 
-<label>复杂度</label>
-<select id="complexity">
-  <option value="0.8">简单</option>
-  <option value="1" selected>中等</option>
-  <option value="1.3">复杂</option>
-</select>
+<!-- S3 术语 -->
+<div class="step open" id="step3">
+  <div class="step-head" onclick="toggleStep('step3')">
+    <div class="step-num">03</div>
+    <div class="step-bar" style="background:var(--amber);box-shadow:0 0 4px var(--amber)"></div>
+    <div class="step-title">术语阶段</div>
+    <div class="step-sum" id="s3-sum">跳过</div>
+  </div>
+  <div class="step-body">
+    <div class="sw-row" onclick="togSw('term')" style="padding:0 0 8px">
+      <div class="sw" id="sw-term"></div>
+      <span class="sw-lbl">纳入术语提取 & 翻译</span>
+    </div>
+    <div id="term-body" style="display:none">
 
-<label>并行程度</label>
-<select id="parallel">
-  <option value="0.8">低</option>
-  <option value="1" selected>标准</option>
-  <option value="1.3">高</option>
-</select>
+      <div class="notice ng" style="font-size:11px;margin-bottom:10px">
+        提取：机器提取+人工确认 = 固定2天 &nbsp;·&nbsp; 翻译：条数÷1000天 + 审核：条数÷1500天 &nbsp;·&nbsp; 单价：各语种 Freelancer 翻译单价
+      </div>
+      <div id="term-auto-hint" class="hint" style="margin-bottom:10px"></div>
+      <div class="lbl" style="margin-bottom:6px;color:var(--t3)">手动覆盖（可选）</div>
+      <div class="g2">
+        <div class="fl"><div class="lbl">术语条数</div><input type="number" id="term-count" value="1000" min="100" step="100" oninput="onTermManual()"></div>
+        <div class="fl"><div class="lbl">术语字数</div><input type="number" id="term-chars" value="4000" min="100" step="100" oninput="onTermManual();renderTermCostTable();"></div>
+      </div>
+      <div class="g2 mt8">
+        <div class="fl"><div class="lbl">提取工期（天）</div><input type="number" id="term-ex-days" value="2" min="0.5" step="0.5" oninput="calc()"></div>
+        <div class="fl"><div class="lbl">翻译工期（天）</div><input type="number" id="term-tr-days" value="3" min="1" step="1" oninput="calc()"></div>
+      </div>
+      <div id="term-hint" class="hint mt8"></div>
+    </div><div id="term-body" style="display:none">
+      <div class="notice ng" style="font-size:11px;margin-bottom:9px">基准：10,000中文字，预计可提取 500–1000 条术语，术语本地化完成周期预估为 5 天</div>
+      <div class="g2">
+        <div class="fl"><div class="lbl">术语条数</div><input type="number" id="term-count" value="1000" min="100" step="100"></div>
+        <div class="fl"><div class="lbl">机器提取（天）</div><input type="number" id="term-ex-days" value="0.5" min="0.5" step="0.5"></div>
+      </div>
+      <div class="g2 mt8">
+        <div class="fl"><div class="lbl">人工翻译（天）</div><input type="number" id="term-tr-days" value="4" min="1" step="0.5"></div>
+        <div class="fl"><div class="lbl">术语字数</div><input type="number" id="term-chars" value="4000" min="100" step="100"></div>
+      </div>
+      <div class="fl mt8">
+        <div class="lbl">术语翻译单价（¥/千字，S级）</div>
+        <input type="number" id="term-rate" value="280" min="50" step="10">
+        <div style="margin-top:4px">
+          <span class="stag" onclick="setV('term-rate',240)">¥240</span>
+          <span class="stag" onclick="setV('term-rate',280)">¥280 推荐</span>
+          <span class="stag" onclick="setV('term-rate',320)">¥320</span>
+        </div>
+      </div>
+      <div id="term-hint" class="hint mt8"></div>
+    </div>
+  </div>
+</div>
 
-<label>是否包含LQA</label>
-<select id="lqa">
-  <option value="0">否</option>
-  <option value="1">是</option>
-</select>
+<!-- S4 翻译方式 -->
+<div class="step open" id="step4">
+  <div class="step-head" onclick="toggleStep('step4')">
+    <div class="step-num">04</div>
+    <div class="step-bar" style="background:var(--accent);box-shadow:0 0 4px var(--accent)"></div>
+    <div class="step-title">翻译方式 & 单价</div>
+    <div class="step-sum" id="s4-sum">—</div>
+  </div>
+  <div class="step-body">
+    <div class="sw-row" onclick="togSw('trans')" style="padding:0 0 9px">
+      <div class="sw on" id="sw-trans"></div>
+      <span class="sw-lbl">包含翻译阶段</span>
+    </div>
+    <div id="trans-body">
+      <div class="fl">
+        <div class="lbl">翻译方式</div>
+        <div class="radio-grp" id="trans-mode-grp">
+          <span class="rbtn" data-v="mt" onclick="setTransMode('mt')">AI翻译（机器QA）</span>
+          <span class="rbtn on-am" data-v="aipe" onclick="setTransMode('aipe')">AIPE（人工审核）</span>
+          <span class="rbtn" data-v="human" onclick="setTransMode('human')">人工翻译</span>
+        </div>
+      </div>
+      <div class="fl mt10">
+        <div class="lbl">Fuzzy Match（TM匹配复用率）后新字占比</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="range" id="fuzzy-pct" min="10" max="100" value="100" step="5"
+            oninput="document.getElementById('fuzzy-out').textContent=this.value+'%';"
+            style="flex:1">
+          <span id="fuzzy-out" style="font-family:var(--mono);font-size:12px;color:var(--accent);min-width:40px;text-align:right">100%</span>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:3px">100% = 全部新字，无TM复用；最低10%，新字占比不得低于10%</div>
+      </div>
+      <div class="fl mt10">
+        <div class="lbl">译员人数（默认1人，可增加）</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="range" id="translator-count" min="1" max="10" value="1" step="1"
+            oninput="document.getElementById('tc-out').textContent=this.value+'人';"
+            style="flex:1">
+          <span id="tc-out" style="font-family:var(--mono);font-size:12px;color:var(--accent);min-width:30px">1人</span>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:3px">译员人数增加时翻译天数线性缩短</div>
+      </div>
+      <div id="trans-rate-area" class="mt8"></div>
+    </div>
+  </div>
+</div>
 
-<label>LQA模式</label>
-<select id="lqaMode">
-  <option value="serial">串行（翻译后再LQA）</option>
-  <option value="parallel">并行（同时进行）</option>
-</select>
+<!-- S5 校对 -->
+<div class="step open" id="step5">
+  <div class="step-head" onclick="toggleStep('step5')">
+    <div class="step-num">05</div>
+    <div class="step-bar" style="background:var(--green);box-shadow:0 0 4px var(--green)"></div>
+    <div class="step-title">校对</div>
+    <div class="step-sum" id="s5-sum">—</div>
+  </div>
+  <div class="step-body">
+    <div class="notice ni" style="font-size:11px;margin-bottom:9px">人工校对，包含语言准确性与风格一致性检查。</div>
+    <div class="sw-row" onclick="togSw('edit')" style="padding:0 0 9px">
+      <div class="sw on" id="sw-edit"></div><span class="sw-lbl">校对</span>
+    </div>
+    <div id="edit-body">
+      <div class="fl" style="margin-bottom:8px">
+        <div class="lbl">校对供应商类型</div>
+        <div class="radio-grp" id="proof-vendor-grp">
+          <span class="rbtn on" data-v="freelance" onclick="setProofVendor('freelance')">Freelancer（个人）</span>
+          <span class="rbtn" data-v="vendor" onclick="setProofVendor('vendor')">Vendor（供应商）</span>
+          <span class="rbtn" data-v="internal" onclick="setProofVendor('internal')">内部（本地化）</span>
+        </div>
+      </div>
+      <div id="edit-rate-hint"></div>
+    </div>
+  </div>
+</div>
 
-<button onclick="calculate()">计算工期</button>
 
-<div class="result" id="result">
-  结果将在这里显示
+<!-- S5b QC -->
+<div class="step open" id="step5b">
+  <div class="step-head" onclick="toggleStep('step5b')">
+    <div class="step-num">05b</div>
+    <div class="step-bar" style="background:var(--amber);box-shadow:0 0 4px var(--amber)"></div>
+    <div class="step-title">QC 文本质控</div>
+    <div class="step-sum" id="s5b-sum">跳过</div>
+  </div>
+  <div class="step-body">
+    <div class="sw-row" onclick="togSw('qc')" style="padding:0 0 9px">
+      <div class="sw" id="sw-qc"></div>
+      <span class="sw-lbl">包含 QC 文本质控</span>
+    </div>
+    <div id="qc-body" style="display:none">
+      <div class="notice ni" style="font-size:11px;margin-bottom:10px">位于校对之后、LQA之前。各语种 QC 单价 = 人工翻译 Freelancer 单价 × 60%，可手动覆盖。</div>
+      <div class="fl" style="margin-bottom:10px">
+        <div class="lbl">抽检比例</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="range" id="qc-sample-pct" min="5" max="100" value="10" step="5"
+            oninput="document.getElementById('qc-sample-out').textContent=this.value+'%';renderQcRateTable();"
+            style="flex:1">
+          <span id="qc-sample-out" style="font-family:var(--mono);font-size:13px;color:var(--accent);min-width:40px;text-align:right">10%</span>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:4px">100% = 全量质控；10% = 抽检，成本按比例折算</div>
+      </div>
+      <div id="qc-rate-table"></div>
+    </div>
+  </div>
+</div>
+
+<!-- S6 LQA -->
+<div class="step open" id="step6">
+  <div class="step-head" onclick="toggleStep('step6')">
+    <div class="step-num">06</div>
+    <div class="step-bar" style="background:var(--purple);box-shadow:0 0 4px var(--purple)"></div>
+    <div class="step-title">LQA 测试</div>
+    <div class="step-sum" id="s6-sum">跳过</div>
+  </div>
+  <div class="step-body">
+    <div class="sw-row" onclick="togSw('lqa')" style="padding:0 0 9px">
+      <div class="sw on" id="sw-lqa"></div><span class="sw-lbl">包含 LQA 全面测试</span>
+    </div>
+    <div id="lqa-body">
+      <div class="notice ni" style="font-size:11px;margin-bottom:10px">工期由文本量、语种复杂度、测试范围自动计算，无需手动输入天数。</div>
+      <div class="fl" style="margin-bottom:10px">
+        <div class="lbl">测试范围</div>
+        <div class="radio-grp" id="lqa-scope-grp">
+          <span class="rbtn" data-v="smoke" onclick="setLqaScope('smoke')">核心界面 Smoke</span>
+          <span class="rbtn" data-v="standard" onclick="setLqaScope('standard')">标准测试 Standard</span>
+          <span class="rbtn on" data-v="full" onclick="setLqaScope('full')">全量测试 Full LQA</span>
+        </div>
+        <input type="hidden" id="lqa-scope" value="full">
+      </div>
+      <div class="g2">
+        <div class="fl">
+          <div class="lbl">工期（自动计算）</div>
+          <div id="lqa-days-display" style="font-family:var(--mono);font-size:13px;color:var(--accent);padding:7px 0">— 天</div>
+        </div>
+        <div class="fl">
+          <div class="lbl">每日测试时长（小时）</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="range" id="lqa-hours-day" min="1" max="12" value="8" step="1"
+              oninput="document.getElementById('lqa-hours-out').textContent=this.value+'h';updateLqaHint();renderLqaRateArea();"
+              style="flex:1">
+            <span id="lqa-hours-out" style="font-family:var(--mono);font-size:12px;color:var(--accent);min-width:28px">8h</span>
+          </div>
+        </div>
+      </div>
+      <div class="fl mt8">
+        <div class="lbl">多语种执行方式</div>
+        <div class="radio-grp" id="lqa-mode-grp" style="margin-top:2px">
+          <span class="rbtn on" data-v="parallel" onclick="setLqaMode('parallel')">并行</span>
+          <span class="rbtn" data-v="serial" onclick="setLqaMode('serial')">串行</span>
+        </div>
+      </div>
+      <div class="fl mt10">
+        <div class="lbl">测试人力类型</div>
+        <div class="radio-grp" id="lqa-tester-grp">
+          <span class="rbtn on" data-v="vendor" onclick="setLqaTester('vendor')">供应商</span>
+          <span class="rbtn" data-v="freelance" onclick="setLqaTester('freelance')">个人兼职</span>
+          <span class="rbtn" data-v="internal" onclick="setLqaTester('internal')">内部</span>
+        </div>
+      </div>
+      <div id="lqa-rate-area" class="mt10"></div>
+      <div id="lqa-hint" class="hint mt8"></div>
+    </div>
+  </div>
+</div>
+
+</aside>
+
+<div id="calc-bar" style="
+  position:fixed;bottom:0;left:0;right:0;z-index:200;
+  background:var(--bg1);
+  border-top:1px solid var(--line2);
+  padding:10px 24px;
+">
+<div style="width:100%;display:flex;align-items:center;gap:16px;">
+  <button onclick="runCalc()" style="
+    flex:1;max-width:320px;padding:10px 20px;
+    background:var(--accent-dim);
+    border:1px solid var(--accent);
+    border-radius:var(--r);
+    color:var(--accent);
+    font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+    cursor:pointer;transition:all .15s;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+  " onmouseover="this.style.background='rgba(0,194,255,.2)'" onmouseout="this.style.background='var(--accent-dim)'">
+    <span style="width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);flex-shrink:0"></span>
+    开始计算排期 &amp; 报价
+  </button>
+  <div id="calc-hint" style="font-family:var(--mono);font-size:11px;color:var(--t3);letter-spacing:.04em"></div>
+</div>
+</div>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- 项目总览 -->
+  <div class="sec" id="overview-sec">
+    <div class="sec-head">
+      <div class="sec-bar" style="background:var(--accent);box-shadow:0 0 4px var(--accent)"></div>
+      <div class="sec-title">项目总览</div>
+      <div id="mode-label" style="font-family:var(--mono);font-size:10px;color:var(--t3);letter-spacing:.06em;margin-left:auto"></div>
+    </div>
+    <div class="sec-body">
+      <div id="qual-badge" style="margin-bottom:10px"></div>
+      <div class="metrics-grid" id="metrics"></div>
+      <div id="notices" style="margin-top:9px;display:flex;flex-direction:column;gap:5px"></div>
+    </div>
+  </div>
+
+  <!-- 甘特图时间线 -->
+  <div class="sec">
+    <div class="sec-head">
+      <div class="sec-bar" style="background:var(--accent);box-shadow:0 0 4px var(--accent)"></div>
+      <div class="sec-title">项目时间线</div>
+    </div>
+    <div class="sec-body"><div id="phases"></div></div>
+  </div>
+
+  <!-- 语种工期 & 报价合并表 -->
+  <div class="sec">
+    <div class="sec-head">
+      <div class="sec-bar" style="background:var(--purple);box-shadow:0 0 4px var(--purple)"></div>
+      <div class="sec-title">语种工期 & 报价</div>
+    </div>
+    <div class="sec-body"><div id="lang-breakdown"></div></div>
+  </div>
+
+  <!-- 里程碑 -->
+  <div class="sec">
+    <div class="sec-head">
+      <div class="sec-bar" style="background:var(--green);box-shadow:0 0 4px var(--green)"></div>
+      <div class="sec-title">里程碑</div>
+    </div>
+    <div class="sec-body">
+      <div id="milestones"></div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn btn-p" onclick="exportCSV()">导出 CSV</button>
+        <button class="btn" onclick="exportMD()">导出 MD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 报价明细（两级：阶段汇总 + 展开） -->
+  <div class="sec">
+    <div class="sec-head">
+      <div class="sec-bar" style="background:var(--amber);box-shadow:0 0 4px var(--amber)"></div>
+      <div class="sec-title">外包报价明细</div>
+    </div>
+    <div class="sec-body"><div id="price-breakdown"></div></div>
+  </div>
+
+</main>
 </div>
 
 <script>
-
-// 语言系数
-function getLangFactor(count) {
-  if (count === 1) return 1.0;
-  if (count <= 4) return 1.2;
-  if (count <= 8) return 1.3;
-  if (count <= 15) return 1.5;
-  return 1.7;
+const QL={
+  B:{label:'B',badge:'ql-B',transMode:'aipe',enjakotw:15,multi:25,defaults:{term:true,trans:true,transMode:'aipe',edit:false,qc:true,proof:false,lqa:true,lqaScope:'standard',lqaTester:'vendor',transVendor:'freelance',proofVendor:'freelance'},pf:{edit:.3,proof:.15,lqa:1,cul:.1,iter:.2,audio:.15},desc:'基础可用级 · 适合敏捷上线与次核心市场',quality:'信息准确，无严重错误 · 容错率 ≤5‰ · 适合功能型内容与轻度叙事',flow:'术语提取 → AI翻译 / AIPE（人工审核）→ QC文本质控 → LQA 标准测试（可选）'},
+  A:{label:'A',badge:'ql-A',transMode:'human',enjakotw:20,multi:30,defaults:{term:true,trans:true,transMode:'human',edit:true,qc:false,proof:true,lqa:true,lqaScope:'full',lqaTester:'vendor',transVendor:'vendor',proofVendor:'freelance'},pf:{edit:.4,proof:.2,lqa:1,cul:.12,iter:.25,audio:.15},desc:'行业标准级 · 适合核心市场与主力产品',quality:'语义自然，符合语境 · 容错率 ≤3‰ · 适合主线剧情与角色塑造',flow:'术语提取 → 人工翻译（供应商）→ 校对（兼职）→ QC文本质控（可选）→ LQA 全面测试（供应商）',sEdit:144,sProof:90},
+};
+const LANGS={
+  'zh-CN':{n:'简体中文',tier:'A',diff:1.0,grp:'multi',rA:[150,180],rS:[200,250],lqaGrp:'zhcn'},
+  'zh-TW':{n:'繁体中文',tier:'A',diff:1.05,grp:'tw',rA:[160,190],rS:[210,260],lqaGrp:'zhtw'},
+  'ja':{n:'日语',tier:'B',diff:1.0,grp:'enjako',rA:[200,250],rS:[280,350],lqaGrp:'complex'},
+  'ko':{n:'韩语',tier:'B',diff:1.0,grp:'enjako',rA:[180,220],rS:[260,320],lqaGrp:'complex'},
+  'en':{n:'英语',tier:'A',diff:0.9,grp:'enjako',rA:[150,180],rS:[200,250],lqaGrp:'standard'},
+  'de':{n:'德语',tier:'A',diff:1.1,grp:'multi',rA:[160,200],rS:[220,270],lqaGrp:'standard'},
+  'fr':{n:'法语',tier:'A',diff:1.0,grp:'multi',rA:[160,190],rS:[210,260],lqaGrp:'standard'},
+  'es':{n:'西班牙语',tier:'A',diff:1.0,grp:'multi',rA:[150,180],rS:[200,250],lqaGrp:'standard'},
+  'pt-BR':{n:'葡语(BR)',tier:'A',diff:1.05,grp:'multi',rA:[155,185],rS:[210,260],lqaGrp:'standard'},
+  'it':{n:'意大利语',tier:'A',diff:1.0,grp:'multi',rA:[155,185],rS:[210,260],lqaGrp:'standard'},
+  'ru':{n:'俄语',tier:'A',diff:1.15,grp:'multi',rA:[165,200],rS:[220,270],lqaGrp:'standard'},
+  'ar':{n:'阿拉伯语',tier:'C',diff:1.6,grp:'multi',rA:[220,280],rS:[300,380],lqaGrp:'extreme'},
+  'th':{n:'泰语',tier:'B',diff:1.35,grp:'multi',rA:[190,240],rS:[260,320],lqaGrp:'complex'},
+  'id':{n:'印尼语',tier:'A',diff:0.95,grp:'multi',rA:[140,170],rS:[190,230],lqaGrp:'standard'},
+  'vi':{n:'越南语',tier:'A',diff:1.05,grp:'multi',rA:[150,180],rS:[200,250],lqaGrp:'standard'},
+  'tr':{n:'土耳其语',tier:'A',diff:1.05,grp:'multi',rA:[155,185],rS:[210,260],lqaGrp:'standard'},
+  'pl':{n:'波兰语',tier:'A',diff:1.05,grp:'multi',rA:[155,185],rS:[210,260],lqaGrp:'standard'}
 }
 
-// LQA工期计算
-function getLQADays(wordCount) {
-  if (wordCount <= 100000) return 10.5;
-  if (wordCount <= 200000) return 21;
-  if (wordCount <= 300000) return 28;
-
-  // 超过部分按比例
-  return (wordCount / 100000) * 10;
+// ══════════════════════════════════════════════
+// SCHEDULE ENGINE
+// ══════════════════════════════════════════════
+const B_AI_BASE   = {zhtw:1,   zhcn:1,   standard:1.5, complex:2,   extreme:3};
+const B_AIPE_BASE = {zhtw:2,   zhcn:2,   standard:3,   complex:4,   extreme:5};
+const A_DAILY = {
+  'zh-CN_zh-TW':8000,'zh-CN_ja':5000,'zh-CN_ko':6000,
+  'zh-CN_de':5000,'zh-CN_fr':5000,'zh-CN_es':5000,'zh-CN_pt-BR':5000,
+  'zh-CN_it':5000,'zh-CN_ru':5000,'zh-CN_tr':5000,'zh-CN_pl':5000,
+  'zh-CN_id':6000,'zh-CN_vi':6000,'zh-CN_th':6000,'zh-CN_ar':5000,'zh-CN_en':5000,
+  'en_zh-CN':6000,'en_zh-TW':6000,'en_ja':3000,'en_ko':3000,
+  'en_de':4000,'en_fr':4000,'en_es':4000,'en_pt-BR':4000,
+  'en_it':4000,'en_ru':4000,'en_tr':4000,'en_pl':4000,
+  'en_id':5000,'en_vi':5000,'en_th':5000,'en_ar':3000,
+};
+const PROOF_FACTOR = 1.5;
+const LQA_BASE_DAYS = {smoke:5, standard:10, full:14};
+const LQA_LANG_COEF = {zhtw:0.4, zhcn:0.4, standard:1.0, complex:1.0, extreme:1.5};
+const LQA_TIERS = {
+  zhtw:     [{max:10,c:1.0},{max:30,c:0.6},{max:50,c:0.4},{max:80,c:0.25},{max:100,c:0.15},{max:Infinity,c:0.1}],
+  zhcn:     [{max:10,c:1.0},{max:30,c:0.6},{max:50,c:0.4},{max:80,c:0.25},{max:100,c:0.15},{max:Infinity,c:0.1}],
+  standard: [{max:10,c:1.0},{max:30,c:0.7},{max:50,c:0.5},{max:80,c:0.3}, {max:100,c:0.2}, {max:Infinity,c:0.15}],
+  complex:  [{max:10,c:1.0},{max:30,c:0.7},{max:50,c:0.5},{max:80,c:0.35},{max:100,c:0.25},{max:Infinity,c:0.2}],
+  extreme:  [{max:10,c:1.0},{max:30,c:0.8},{max:50,c:0.6},{max:80,c:0.4}, {max:100,c:0.3}, {max:Infinity,c:0.25}],
+};
+// 精确显示到百分位（小数点后2位），不四舍五入
+function fmtPrice(val){
+  if(val===0) return '¥0';
+  const s = Math.floor(val*100)/100;  // truncate to 2dp, no rounding
+  return '¥'+s.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function fmtRate(val){
+  // For rates (¥/字 etc): show exactly as stored, up to 3 significant decimal places
+  if(val===0) return '0';
+  return (Math.floor(val*1000)/1000).toString();
 }
 
-function calculate() {
-  const wordCount = parseFloat(document.getElementById("wordCount").value);
-  const baseDays = parseFloat(document.getElementById("tier").value);
-  const langCount = parseFloat(document.getElementById("langCount").value);
-  const complexity = parseFloat(document.getElementById("complexity").value);
-  const parallel = parseFloat(document.getElementById("parallel").value);
-  const includeLQA = parseFloat(document.getElementById("lqa").value);
-  const mode = document.getElementById("lqaMode").value;
+// 工期取整：向上取最近的0.5倍数，最小0.5天
+function roundDays(x){ return Math.max(0.5, Math.ceil(x*2)/2); }
 
-  const wordFactor = wordCount / 100000;
-  const langFactor = getLangFactor(langCount);
+function calcLqaDays(vol, lqaGrp, scope){
+  // vol10k: in 万字 units; tiers.max also in 万字
+  // basePer10k: days per 10万字, so divide seg by 10 before multiplying
+  const vol10k = vol/10000;
+  const basePer10k = (LQA_BASE_DAYS[scope]||14) * (LQA_LANG_COEF[lqaGrp]||1.0);
+  const tiers = LQA_TIERS[lqaGrp]||LQA_TIERS.standard;
+  let days=0, remaining=vol10k, prev=0;
+  for(const tier of tiers){
+    if(remaining<=0) break;
+    const segMax = tier.max===Infinity ? remaining : tier.max-prev;
+    const seg = Math.min(remaining, segMax);
+    days += (seg/10) * basePer10k * tier.c;
+    remaining -= seg;
+    prev = tier.max===Infinity ? prev+seg : tier.max;
+  }
+  return roundDays(days);
+}
+function calcTransDays(src, tgt, vol, translators, qlKey, transMode){
+  const vol10k = vol/10000;
+  const lqaGrp = LANGS[tgt]?.lqaGrp||'standard';
+  const n = Math.max(1, translators||1);
+  if(qlKey==='A'){
+    const key = src+'_'+tgt;
+    const baseDailyA = A_DAILY[key]||5000;
+    const ctModA = {light:1.3, medium:1.0, heavy:0.7}[termContentType]||1.0;
+    const daily = baseDailyA * ctModA;
+    return roundDays(vol/daily/n);
+  }
+  const baseTable = transMode==='mt' ? B_AI_BASE : B_AIPE_BASE;
+  const base = baseTable[lqaGrp]||baseTable.standard;
+  const vol10Wk = vol/100000; // 10万字 units
+  return roundDays(base*vol10Wk/n);
+}
+// ── TERM ENGINE ──
+const TERM_CONTENT_TYPES = {
+  light:  {label:'轻度（SLG/休闲）',   base:500,  coef:0.5},
+  medium: {label:'中重度（RPG/二游）',  base:1000, coef:1.0},
+  heavy:  {label:'强IP/重叙事',        base:1500, coef:1.5},
+};
+const TERM_TIERS = [
+  {max:10,  base:100},
+  {max:30,  base:50},
+  {max:60,  base:30},
+  {max:100, base:20},
+  {max:Infinity, base:15},
+];
+function calcTermCount(vol, contentType){
+  const coef = TERM_CONTENT_TYPES[contentType]?.coef || 1.0;
+  const vol10k = vol / 10000;
+  let count = 0, remaining = vol10k, prev = 0;
+  for(const tier of TERM_TIERS){
+    if(remaining <= 0) break;
+    const segMax = tier.max === Infinity ? remaining : tier.max - prev;
+    const seg = Math.min(remaining, segMax);
+    count += seg * tier.base * coef;
+    remaining -= seg;
+    prev = tier.max === Infinity ? prev + seg : tier.max;
+  }
+  return Math.round(count);
+}
+function calcTermTransDays(termCount){
+  // 翻译: ceil(条数/1000), 审核: ceil(条数/1500), 串行
+  const transDays = Math.max(1, Math.ceil(termCount / 1000));
+  const reviewDays = Math.max(1, Math.ceil(termCount / 1500));
+  return transDays + reviewDays;
+}
+function calcTermTransBreakdown(termCount){
+  return {
+    trans: Math.max(1, Math.ceil(termCount / 1000)),
+    review: Math.max(1, Math.ceil(termCount / 1500))
+  };
+}
+function calcTermChars(termCount){ return termCount * 4; }
 
-  // 文本工期
-  const textDays = baseDays * wordFactor * complexity * langFactor / parallel;
+function calcProofDays(transDays){
+  // 校对 = 翻译天数 × 50%（滚动并行，分批验收）
+  return roundDays(transDays * 0.5);
+}
+function calcQcDays(transDays, samplePct){
+  // QC = 翻译天数 × 50% × 抽检比例
+  return roundDays(transDays * 0.5 * (samplePct||0.1));
+}
+;
+const PC={termex:'#f5a623',termtr:'#ef9f27',trans:'#00c2ff',edit:'#00e5a0',qc:'#f5a623',proof:'#34d399',lqa:'#a78bfa',cul:'#f472b6',iter:'#94a3b8',audio:'#38bdf8'};
+const PL={termex:'术语提取',termtr:'术语翻译',trans:'翻译',edit:'校对',qc:'QC文本质控',proof:'校对',lqa:'LQA测试',cul:'文化审查',iter:'优化迭代',audio:'音频质量验收'};
+const PT={termex:'pre',termtr:'pre',trans:'core',edit:'core',qc:'core',proof:'core',lqa:'post',cul:'post',iter:'post',audio:'post'};
+const TL={pre:'前置',core:'翻译',post:'后处理'};
 
-  // LQA工期
-  let lqaDays = 0;
-  if (includeLQA === 1) {
-    lqaDays = getLQADays(wordCount);
+let curTransMode='aipe', lqaMode='parallel', lastResult=null, humanVendorType='freelance', lqaTesterType='vendor';
+
+const $=id=>document.getElementById(id);
+const gsw=k=>{const e=$('sw-'+k);return e?e.classList.contains('on'):false;};
+const setV=(id,v)=>{$(id).value=v;calc()};
+
+function toggleStep(id){$(id).classList.toggle('open')}
+
+function togSw(k){
+  const swEl=$('sw-'+k);if(!swEl)return;
+  swEl.classList.toggle('on');
+  if(k==='term'){$('term-body').style.display=gsw('term')?'block':'none';if(gsw('term'))autoTermCalc();}
+  if(k==='trans'){$('trans-body').style.display=gsw('trans')?'block':'none';}
+  if(k==='edit'){$('edit-body').style.display=gsw('edit')?'block':'none';}
+  if(k==='qc'){$('qc-body').style.display=gsw('qc')?'block':'none';if(gsw('qc'))setTimeout(renderQcRateTable,50);}
+  if(k==='lqa'){$('lqa-body').style.display=gsw('lqa')?'block':'none';}
+}
+
+function setTransMode(m){
+  curTransMode=m;
+  document.querySelectorAll('#trans-mode-grp .rbtn').forEach(b=>{
+    b.className='rbtn'+(b.dataset.v===m?(m==='human'?' on':' on-am'):'');
+  });
+  renderTransRateArea();
+  setTimeout(updateEditRateHint,50);
+  setTimeout(renderQcRateTable,60);
+}
+
+function setLqaMode(m){
+  lqaMode=m;
+  document.querySelectorAll('#lqa-mode-grp .rbtn').forEach(b=>{
+    b.className='rbtn'+(b.dataset.v===m?' on':'');
+  });
+  updateLqaHint();
+}
+
+function getLangs(){
+  const src=$('src-lang').value;
+  return [...document.querySelectorAll('#langsel .tgl.on')].map(t=>t.dataset.lang).filter(l=>l!==src);
+}
+
+function onQlChange(){
+  applyQlDefaults();
+  renderQlHint();
+  renderTransRateArea();
+  renderLqaRateArea();
+  updateSuggestTags();
+  autoLqaDays();
+}
+
+function applyQlDefaults(){
+  if($("qlevel").value==="C"||$("qlevel").value==="S") $("qlevel").value="B";
+  const qlKey=$('qlevel').value;
+  const d=QL[qlKey].defaults;
+  if(!d) return;
+  // switches
+  ['term','trans','edit','qc','proof','lqa'].forEach(k=>{
+    const el=$('sw-'+k); if(!el) return;
+    d[k]?el.classList.add('on'):el.classList.remove('on');
+  });
+  // show/hide dependent bodies
+  $('term-body').style.display=d.term?'block':'none';
+  if(d.term) autoTermCalc();
+  $('trans-body').style.display=d.trans?'block':'none';
+  $('edit-body').style.display=d.edit?'block':'none';
+  $('proof-body') && ($('proof-body').style.display=d.proof?'block':'none');
+  $('qc-body') && ($('qc-body').style.display=d.qc?'block':'none');
+  $('lqa-body').style.display=d.lqa?'block':'none';
+  // trans mode + vendor
+  if(d.transMode) setTransMode(d.transMode);
+  if(d.transVendor) setHumanVendor(d.transVendor);
+  // proof vendor
+  if(d.proofVendor) setProofVendor(d.proofVendor);
+  // LQA scope + tester
+  if(d.lqaScope) setLqaScope(d.lqaScope);
+  if(d.lqaTester) setLqaTester(d.lqaTester);
+  updateSuggestTags();
+  setTimeout(()=>{updateEditRateHint();renderQcRateTable();renderLqaRateArea();},80);
+}
+function onWcChange(){autoTermCalc();autoLqaDays();renderQlHint();}
+function onSrcChange(){
+  const src=$('src-lang').value;
+  document.querySelectorAll('#langsel .tgl').forEach(t=>{
+    const isSrc=t.dataset.lang===src;
+    t.style.opacity=isSrc?'.3':'1';
+    t.style.pointerEvents=isSrc?'none':'auto';
+    t.style.cursor=isSrc?'default':'pointer';
+    if(isSrc) t.classList.remove('on');
+  });
+  renderLangRef();renderTransRateArea();renderLqaRateArea();setTimeout(()=>{renderQcRateTable();renderTermCostTable();},60);
+}
+
+function renderQlHint(){
+  const qlKey=$('qlevel').value, ql=QL[qlKey];
+  $('ql-hint').innerHTML=[
+    ['等级定位', ql.desc],
+    ['质量预估', ql.quality||'—'],
+    ['本地化流程', ql.flow||'—'],
+  ].map(([l,v])=>`
+    <div class="hr" style="align-items:flex-start;padding:3px 0">
+      <span class="hl" style="flex:0 0 72px;padding-top:1px">${l}</span>
+      <span class="hv" style="text-align:left;line-height:1.6">${v}</span>
+    </div>`).join('');
+}
+
+function renderLangRef(){}
+
+function getLangRate(src, tgt, vendorType){
+  // Unit: ZH source = ¥/千字, EN source = ¥/词
+  // [freelancer, vendor]
+  const ZH_RATES = {
+    'zh-TW': [0.10, 0.28],
+    'ko':    [0.20, 0.45],
+    'ja':    [0.30, 0.70],
+    'id':    [0.30, 0.70],
+    'th':    [0.30, 0.65],
+    'vi':    [0.30, 0.65],
+    'en':    [0.40, 0.65],
+    'ru':    [0.30, 0.85],
+    'de':    [0.40, 0.90],
+    'fr':    [0.40, 0.90],
+    'pt-BR': [0.40, 0.90],
+    'es':    [0.40, 0.90],
+    'tr':    [0.40, 1.00],
+    'it':    [0.40, 0.95],
+    'ar':    [0.50, 1.00],
+    'pl':    [0.50, 1.00],
+  };
+  const EN_RATES = {
+    'zh-CN': [0.20, 0.50],
+    'ko':    [0.40, 0.80],
+    'ja':    [0.50, 0.90],
+    'id':    [0.40, 0.70],
+    'th':    [0.40, 0.65],
+    'vi':    [0.40, 0.65],
+    'ru':    [0.40, 0.75],
+    'de':    [0.50, 1.10],
+    'fr':    [0.50, 1.10],
+    'pt-BR': [0.45, 0.95],
+    'es':    [0.45, 0.95],
+    'tr':    [0.50, 0.75],
+    'it':    [0.50, 0.95],
+    'ar':    [0.60, 0.75],
+    'pl':    [0.60, 0.95],
+  };
+  const isSrcZH = src==='zh-CN' || src==='zh-TW';
+  const table = isSrcZH ? ZH_RATES : EN_RATES;
+  const pair = table[tgt];
+  if(!pair) return [0.3, 0.7]; // fallback
+  const v = vendorType==='vendor' ? pair[1] : pair[0];
+  // Return as [low, high] range (±20% around the point value)
+  return [Math.round(v*0.85*100)/100, Math.round(v*1.15*100)/100];
+}
+
+function getLangRateMid(src, tgt, vendorType){
+  const r = getLangRate(src, tgt, vendorType);
+  return Math.round((r[0]+r[1])/2*100)/100;
+}
+function getLangRatePoint(src, tgt, vendorType){
+  // Returns the exact table value (not the ±15% range mid)
+  const isSrcZH=src==='zh-CN'||src==='zh-TW';
+  const ZH_RATES={'zh-TW':{'freelance':0.10,'vendor':0.28},'ko':{'freelance':0.20,'vendor':0.45},'ja':{'freelance':0.30,'vendor':0.70},'id':{'freelance':0.30,'vendor':0.70},'th':{'freelance':0.30,'vendor':0.65},'vi':{'freelance':0.30,'vendor':0.65},'en':{'freelance':0.40,'vendor':0.65},'ru':{'freelance':0.30,'vendor':0.85},'de':{'freelance':0.40,'vendor':0.90},'fr':{'freelance':0.40,'vendor':0.90},'pt-BR':{'freelance':0.40,'vendor':0.90},'es':{'freelance':0.40,'vendor':0.90},'tr':{'freelance':0.40,'vendor':1.00},'it':{'freelance':0.40,'vendor':0.95},'ar':{'freelance':0.50,'vendor':1.00},'pl':{'freelance':0.50,'vendor':1.00}};
+  const EN_RATES={'zh-CN':{'freelance':0.20,'vendor':0.50},'ko':{'freelance':0.40,'vendor':0.80},'ja':{'freelance':0.50,'vendor':0.90},'id':{'freelance':0.40,'vendor':0.70},'th':{'freelance':0.40,'vendor':0.65},'vi':{'freelance':0.40,'vendor':0.65},'ru':{'freelance':0.40,'vendor':0.75},'de':{'freelance':0.50,'vendor':1.10},'fr':{'freelance':0.50,'vendor':1.10},'pt-BR':{'freelance':0.45,'vendor':0.95},'es':{'freelance':0.45,'vendor':0.95},'tr':{'freelance':0.50,'vendor':0.75},'it':{'freelance':0.50,'vendor':0.95},'ar':{'freelance':0.60,'vendor':0.75},'pl':{'freelance':0.60,'vendor':0.95}};
+  const table=isSrcZH?ZH_RATES:EN_RATES;
+  const entry=table[tgt];
+  if(!entry) return 0.3;
+  return entry[vendorType]||entry['freelance'];
+}
+
+function getLangUnit(src){
+  // ZH source: ¥/千字, EN source: ¥/词
+  return (src==='zh-CN'||src==='zh-TW') ? '¥/字' : '¥/词';
+}
+
+function getLangUnitLabel(src){
+  return (src==='zh-CN'||src==='zh-TW') ? '字' : '词';
+}
+
+
+function renderTransRateArea(){
+  const qlKey=$('qlevel').value, ql=QL[qlKey], isS=qlKey==='S';
+  const langs=getLangs();
+  const mode=curTransMode;
+  const src=$('src-lang').value;
+  const unit=getLangUnit(src);
+  const unitLbl=getLangUnitLabel(src);
+
+  if(!langs.length){
+    $('trans-rate-area').innerHTML='<div class="empty">// 请先在步骤02选择目标语言</div>';
+    return;
   }
 
-  // 总工期
-  let totalDays = 0;
-  if (mode === "serial") {
-    totalDays = textDays + lqaDays;
+  if(mode==='mt'){
+    $('trans-rate-area').innerHTML=`<div class="notice ng" style="font-size:11px">AI翻译（机器QA）人力成本计为 ¥0，仅计算工期。</div>`;
+    return;
+  }
+
+  if(mode==='aipe'){
+    if(!langs.length){
+      $('trans-rate-area').innerHTML='<div class="empty">// 请先选择目标语言</div>';
+      return;
+    }
+    const aipeRows=langs.map(l=>{
+      const d=LANGS[l];
+      const freelancePoint=getLangRatePoint(src,l,'freelance'); // always Freelancer as base
+      const aipeDef=Math.round(freelancePoint*0.6*1000)/1000;
+      const existingEl=document.getElementById('aipe-tr-'+l);
+      const val=existingEl?parseFloat(existingEl.value)||aipeDef:aipeDef;
+      return{l,d,freelancePoint,aipeDef,val};
+    });
+    const thS="font-family:var(--mono);font-size:10px;color:var(--t3);text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);letter-spacing:.05em;font-weight:400";
+    const thR="font-family:var(--mono);font-size:10px;color:var(--t3);text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);letter-spacing:.05em;font-weight:400";
+    $('trans-rate-area').innerHTML=`
+      <div class="lbl" style="margin-bottom:6px">AIPE（人工审核）单价（${unit}）= 人工参考中位 × 60%，可手动覆盖</div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="${thS}">语种</th>
+          <th style="${thS}">Freelancer 单价</th>
+          <th style="${thS}">AIPE默认（×60%）</th>
+          <th style="${thR}">实际单价（${unit}）</th>
+        </tr></thead>
+        <tbody>
+          ${aipeRows.map(({l,d,freelancePoint,aipeDef,val})=>`
+          <tr class="lang-rate-row">
+            <td style="font-size:12px;color:var(--t2);padding:6px 8px">${d.n}</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--t3);padding:6px 8px">¥${fmtRate(freelancePoint)}/字（Freelancer）</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--amber);padding:6px 8px">¥${fmtRate(aipeDef)}</td>
+            <td style="padding:4px 8px;text-align:right">
+              <input type="number" id="aipe-tr-${l}" value="${val}" min="0" step="5"
+                style="background:var(--bg3);border:1px solid var(--line2);border-radius:2px;color:var(--t1);font-family:var(--mono);font-size:12px;padding:4px 8px;width:80px;outline:none;text-align:right"
+                onfocus="this.style.borderColor='var(--accent)'"
+                onblur="this.style.borderColor='var(--line2)'">
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+    return;
+  }
+
+  // human: vendor type selector + per-lang table
+  const rows = langs.map(l=>{
+    const d=LANGS[l];
+    const r=getLangRate(src, l, humanVendorType);
+    const point=getLangRatePoint(src, l, humanVendorType);  // exact table value
+    const existingEl=document.getElementById('tr-'+l);
+    const val=existingEl&&manualTransRates.has(l)?parseFloat(existingEl.value)||point:point;
+    return {l, d, r, point, val};
+  });
+
+  const thStyle="font-family:var(--mono);font-size:10px;color:var(--t3);text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);letter-spacing:.05em;font-weight:400";
+  const thRStyle="font-family:var(--mono);font-size:10px;color:var(--t3);text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);letter-spacing:.05em;font-weight:400";
+
+  $('trans-rate-area').innerHTML=`
+    <div class="fl" style="margin-bottom:10px">
+      <div class="lbl">供应商类型</div>
+      <div class="radio-grp" id="human-vendor-grp">
+        <span class="rbtn ${humanVendorType==='freelance'?'on':''}" data-v="freelance" onclick="setHumanVendor('freelance')">
+          Freelancer（个人）
+        </span>
+        <span class="rbtn ${humanVendorType==='vendor'?'on':''}" data-v="vendor" onclick="setHumanVendor('vendor')">
+          Vendor（供应商）
+        </span>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:5px;line-height:1.6" id="vendor-hint">
+        ${humanVendorType==='freelance'
+          ? '个人译者 · 单价较低 · 适合中小体量或预算受限项目'
+          : '专业供应商 · 单价较高 · 含项目管理、质量保证流程'}
+      </div>
+    </div>
+    <div class="lbl" style="margin-bottom:6px">人工翻译单价（${unit}）— 按语种独立定价</div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr>
+          <th style="${thStyle}">语种</th>
+          <th style="${thStyle}">Tier</th>
+          <th style="${thStyle}">参考区间</th>
+          <th style="${thRStyle}">单价（${unit}）</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(({l,d,r,val})=>`
+        <tr class="lang-rate-row">
+          <td style="font-size:12px;color:var(--t2);padding:6px 8px">${d.n}</td>
+          <td style="padding:6px 8px"><span class="tier-b t${d.tier}">T${d.tier}</span></td>
+          <td style="font-family:var(--mono);font-size:10px;color:var(--t3);padding:6px 8px">¥${r[0]}–${r[1]}</td>
+          <td style="padding:4px 8px;text-align:right">
+            <input type="number" id="tr-${l}" value="${val}" min="0" step="0.01"
+              style="background:var(--bg3);border:1px solid var(--line2);border-radius:2px;color:var(--t1);font-family:var(--mono);font-size:12px;padding:4px 8px;width:90px;outline:none;text-align:right"
+              onchange="manualTransRates.add('${l}')"
+              onfocus="this.style.borderColor='var(--accent)'"
+              onblur="this.style.borderColor='var(--line2)'">
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--t3)">批量填入：</span>
+      <span class="stag" onclick="fillAllRates('mid')">各语种中位价</span>
+      <span class="stag" onclick="fillAllRates('low')">各语种下限价</span>
+      <span class="stag" onclick="fillAllRates('high')">各语种上限价</span>
+    </div>`;
+}
+
+
+function renderQcRateTable(){
+  const el=$('qc-rate-table');
+  if(!el||!gsw('qc')) return;
+  const langs=getLangs(), src=$('src-lang').value;
+  const samplePct=(parseInt($('qc-sample-pct')?.value)||10)/100;
+  if(!langs.length){
+    el.innerHTML='<div class="empty">// 请先选择目标语言</div>';
+    return;
+  }
+  const thS='font-family:var(--mono);font-size:10px;color:var(--t3);text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);letter-spacing:.05em;font-weight:400';
+  const thR='font-family:var(--mono);font-size:10px;color:var(--t3);text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);letter-spacing:.05em;font-weight:400';
+  const rows=langs.map(l=>{
+    const d=LANGS[l];
+    const freelanceRate=getLangRatePoint(src,l,'freelance');
+    const defRate=Math.round(freelanceRate*0.6*1000)/1000;
+    return{l,d,freelanceRate,defRate};
+  });
+  el.innerHTML=`
+    <div class="lbl" style="margin-bottom:6px">QC 单价（¥/字）= 各语种人工翻译 Freelancer × 60%，可手动覆盖</div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="${thS}">语种</th>
+        <th style="${thS}">Freelancer 翻译单价</th>
+        <th style="${thS}">默认（×60%）</th>
+        <th style="${thR}">实际单价（¥/字）</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(({l,d,freelanceRate,defRate})=>`
+        <tr style="border-bottom:1px solid var(--line2)">
+          <td style="font-size:12px;color:var(--t2);padding:6px 8px">${d.n}</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--t3);padding:6px 8px">¥${fmtRate(freelanceRate)}</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--amber);padding:6px 8px">¥${fmtRate(defRate)}</td>
+          <td style="padding:4px 8px;text-align:right">
+            <input type="number" id="qc-tr-${l}" value="${defRate}" min="0" step="0.01"
+              style="background:var(--bg3);border:1px solid var(--line2);border-radius:2px;color:var(--t1);font-family:var(--mono);font-size:12px;padding:4px 8px;width:80px;outline:none;text-align:right"
+              onfocus="this.style.borderColor='var(--accent)'"
+              onblur="this.style.borderColor='var(--line2)'">
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--t3)">
+      抽检比例 ${Math.round(samplePct*100)}% · 工期和成本均按比例折算
+    </div>`;
+}
+
+function setProofVendor(type){
+  proofVendorType = type;
+  document.querySelectorAll('#proof-vendor-grp .rbtn').forEach(b=>{
+    b.className = 'rbtn' + (b.dataset.v === type ? ' on' : '');
+  });
+  setTimeout(updateEditRateHint, 50);
+}
+
+function updateEditRateHint(){
+  const el=$('edit-rate-hint');
+  if(!el) return;
+  const langs=getLangs();
+  const src=$('src-lang').value;
+  if(!langs.length){
+    el.innerHTML='<div class="empty">// 请先选择目标语言</div>';
+    return;
+  }
+  if(proofVendorType==='internal'){
+    el.innerHTML=`<div class="notice ng" style="font-size:11px">内部（本地化）校对 — 人力成本计为 ¥0，仅计算工期。</div>`;
+    return;
+  }
+  // Use matching vendor type as base: Freelancer proof → Freelancer rate, Vendor proof → Vendor rate
+  const baseVendor = proofVendorType; // 'freelance' or 'vendor'
+  const vendorLabel = proofVendorType==='vendor'?'供应商':'Freelancer';
+  const rows=langs.map(l=>{
+    const baseRate=getLangRatePoint(src,l,baseVendor);
+    const defRate=Math.round(baseRate*0.5*1000)/1000;
+    return{l,baseRate,defRate,val:defRate};
+  });
+  const thS='font-family:var(--mono);font-size:10px;color:var(--t3);text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);letter-spacing:.05em;font-weight:400';
+  const thR='font-family:var(--mono);font-size:10px;color:var(--t3);text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);letter-spacing:.05em;font-weight:400';
+  el.innerHTML=`
+    <div class="lbl" style="margin-bottom:6px">校对单价（¥/字）= ${vendorLabel}翻译单价 × 50%</div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="${thS}">语种</th>
+        <th style="${thS}">${vendorLabel}翻译单价</th>
+        <th style="${thS}">默认（×50%）</th>
+        <th style="${thR}">实际单价（¥/字）</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(({l,baseRate,defRate,val})=>`
+        <tr style="border-bottom:1px solid var(--line2)">
+          <td style="font-size:12px;color:var(--t2);padding:6px 8px">${LANGS[l].n}</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--t3);padding:6px 8px">¥${fmtRate(baseRate)}</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--amber);padding:6px 8px">¥${fmtRate(defRate)}</td>
+          <td style="padding:4px 8px;text-align:right">
+            <input type="number" id="proof-tr-${l}" value="${val}" min="0" step="0.01"
+              style="background:var(--bg3);border:1px solid var(--line2);border-radius:2px;color:var(--t1);font-family:var(--mono);font-size:12px;padding:4px 8px;width:80px;outline:none;text-align:right"
+              onfocus="this.style.borderColor='var(--accent)'"
+              onblur="this.style.borderColor='var(--line2)'">
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--t3)">批量填入：</span>
+      <span class="stag" onclick="fillProofRates()">各语种默认价</span>
+    </div>`;
+}
+
+function fillProofRates(){
+  const src=$('src-lang').value;
+  getLangs().forEach(l=>{
+    const el=document.getElementById('proof-tr-'+l);
+    if(!el) return;
+    const baseRate=getLangRatePoint(src,l,proofVendorType);
+    el.value=Math.round(baseRate*0.5*1000)/1000;
+  });
+}
+
+function fillProofRates(){
+  const src=$('src-lang').value;
+  getLangs().forEach(l=>{
+    const el=document.getElementById('proof-tr-'+l);
+    if(!el) return;
+    const baseRate=getLangRatePoint(src,l,proofVendorType);
+    el.value=Math.round(baseRate*0.5*1000)/1000;
+  });
+}
+
+function fillProofRates(){
+  const src=$('src-lang').value;
+  getLangs().forEach(l=>{
+    const el=document.getElementById('proof-tr-'+l);
+    if(!el) return;
+    const freelanceRate=getLangRatePoint(src,l,'freelance');
+    el.value=Math.round(freelanceRate*0.5*1000)/1000;
+  });
+}
+
+function updateSuggestTags(){
+  updateEditRateHint();
+}
+
+
+let textComplexity = 'normal';
+let termContentType = 'medium';
+let proofVendorType = 'freelance';
+const manualTransRates = new Set(); // tracks manually edited tr-{lang} inputs
+let termManualOverride = false;
+
+
+function setTermType(type){
+  termContentType = type;
+  termManualOverride = false;
+  // sync both selector groups
+  ['#term-type-grp-s1','#term-type-grp'].forEach(sel=>{
+    document.querySelectorAll(sel+' .rbtn').forEach(b=>{
+      b.className = 'rbtn' + (b.dataset.v === type ? ' on' : '');
+    });
+  });
+  autoTermCalc();
+}
+
+function onTermManual(){
+  termManualOverride = true;
+  calc();
+}
+
+function renderTermCostTable(){
+  const hintEl=$('term-hint');
+  if(!hintEl||!gsw('term')) return;
+  const langs=getLangs(), src=$('src-lang').value;
+  if(!langs.length){
+    hintEl.innerHTML='<div class="empty">// 请先选择目标语言</div>';
+    return;
+  }
+  const termCharsVal=parseInt($('term-chars').value)||4000;
+  const thS='font-family:var(--mono);font-size:10px;color:var(--t3);text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);letter-spacing:.05em;font-weight:400';
+  const thR='font-family:var(--mono);font-size:10px;color:var(--t3);text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);letter-spacing:.05em;font-weight:400';
+  hintEl.innerHTML=`
+    <div class="lbl" style="margin-bottom:6px">各语种术语翻译成本估算（Freelancer 单价）</div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="${thS}">语种</th>
+        <th style="${thS}">Freelancer 单价（¥/字）</th>
+        <th style="${thS}">折算字数</th>
+        <th style="${thR}">预估成本</th>
+      </tr></thead>
+      <tbody>
+        ${langs.map(l=>{
+          const rate=getLangRatePoint(src,l,'freelance');
+          const cost=Math.floor(termCharsVal*rate*100)/100;
+          return `<tr style="border-bottom:1px solid var(--line2)">
+            <td style="font-size:12px;color:var(--t2);padding:6px 8px">${LANGS[l].n}</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--t3);padding:6px 8px">¥${fmtRate(rate)}</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--t3);padding:6px 8px">${termCharsVal.toLocaleString()} 字</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--amber);padding:6px 8px;text-align:right">${fmtPrice(cost)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+function autoTermCalc(){
+  if(!gsw('term')) return;
+  const wc = parseInt($('wc').value)||100000;
+  const tm = parseInt($('tm').value)/100||0;
+  const vol = wc*(1-tm);
+  if(!termManualOverride){
+    const cnt = calcTermCount(vol, termContentType);
+    const chars = calcTermChars(cnt);
+    const trDays = calcTermTransDays(cnt);
+    $('term-count').value = cnt;
+    $('term-chars').value = chars;
+    $('term-tr-days').value = trDays;
+    $('term-ex-days').value = 2;
+  }
+  const cnt = parseInt($('term-count').value)||1000;
+  const chars = parseInt($('term-chars').value)||4000;
+  const trDays = parseInt($('term-tr-days').value)||3;
+  const exDays = parseFloat($('term-ex-days').value)||2;
+  const langs = getLangs(), src = $('src-lang').value;
+  const typeLabel = TERM_CONTENT_TYPES[termContentType]?.label || '中重度';
+  // auto hint
+  const autoHintEl = $('term-auto-hint');
+  if(autoHintEl){
+    const autoCnt = calcTermCount(vol, termContentType);
+    const autoTr = calcTermTransDays(autoCnt);
+    autoHintEl.innerHTML = [
+      ['内容类型', typeLabel],
+      ['估算术语条数', `${autoCnt.toLocaleString()} 条`],
+      ['折算字数', `${calcTermChars(autoCnt).toLocaleString()} 字`],
+      ['提取工期', `${exDays} 天（机器提取+人工确认）`],
+      ['翻译工期', (()=>{const b=calcTermTransBreakdown(autoCnt);return `${autoTr} 天（翻译${b.trans}天 + 审核${b.review}天）`;})()],
+    ].map(([l,v])=>`<div class="hr"><span class="hl">${l}</span><span class="hv">${v}</span></div>`).join('');
+  }
+  renderTermCostTable();
+  calc();
+}
+
+function autoLqaDays(){
+  updateLqaHint();
+}
+
+function updateLqaHint(){
+  const langs=getLangs();
+  const lqaScope=$('lqa-scope')?.value||'full';
+  const wc=parseInt($('wc')?.value)||100000;
+  const tm=parseInt($('tm')?.value)/100||0;
+  const vol=wc*(1-tm);
+  const hoursDay=parseInt($('lqa-hours-day')?.value)||8;
+  const n=langs.length||1;
+  const typeLabel=lqaTesterType==='vendor'?'供应商':lqaTesterType==='internal'?'内部（¥0）':'个人兼职';
+
+  // Calculate per-lang days
+  const langDays=langs.map(l=>({
+    name:LANGS[l]?.n||l,
+    days:calcLqaDays(vol, LANGS[l]?.lqaGrp||'standard', lqaScope)
+  }));
+  const maxDays=langDays.length?Math.max(...langDays.map(x=>x.days)):calcLqaDays(vol,'standard',lqaScope);
+
+  // Update display
+  const display=$('lqa-days-display');
+  if(display) display.textContent=maxDays+' 天（最长语种）';
+
+  const el=$('lqa-hint'); if(!el) return;
+  const totalHours=maxDays*hoursDay;
+
+  el.innerHTML=[
+    ['测试范围', {'smoke':'核心界面 Smoke','standard':'标准测试 Standard','full':'全量测试 Full LQA'}[lqaScope]||lqaScope],
+    ['测试人力', typeLabel],
+    ['当前模式', lqaMode==='parallel'?'并行':'串行'],
+    ['每日时长', `${hoursDay}h`],
+  ].map(([l,v])=>`<div class="hr"><span class="hl">${l}</span><span class="hv">${v}</span></div>`).join('')+
+  (langDays.length?`
+    <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--line)">
+      ${langDays.map(({name,days})=>`
+        <div class="hr">
+          <span class="hl">${name}</span>
+          <span class="hv">${days}天 × ${hoursDay}h = ${days*hoursDay}h</span>
+        </div>`).join('')}
+      <div class="hr" style="border-top:1px solid var(--line2);margin-top:4px;padding-top:4px">
+        <span class="hl" style="color:var(--t2)">${lqaMode==='parallel'?'并行总工期':'串行总工期'}</span>
+        <span class="hv" style="color:var(--accent)">${lqaMode==='parallel'?maxDays:langDays.reduce((s,x)=>s+x.days,0)} 天</span>
+      </div>
+    </div>`:'');
+}
+
+
+function getTransRateForLang(l){
+  if(curTransMode==='mt') return 0;
+  if(curTransMode==='human'){
+    const el=$('tr-'+l);
+    return el?parseFloat(el.value)||0.3:0.3;
+  }
+  // aipe: per-lang input
+  const el=document.getElementById('aipe-tr-'+l);
+  if(el) return parseFloat(el.value)||0;
+  // fallback: compute from human mid
+  const src=$('src-lang').value;
+  const r=getLangRate(src,l,'freelance');
+  return Math.round((r[0]+r[1])/2*0.6);
+}
+
+function calc(){
+  const qlKey=$('qlevel').value, ql=QL[qlKey];
+  const wc=parseInt($('wc').value)||100000, tm=parseInt($('tm').value)/100;
+  const effectiveWc=wc*(1-tm), ratio=effectiveWc/100000, kw=effectiveWc/1000;
+  const langs=getLangs();
+  if(!langs.length){
+    ['metrics','phases','lang-breakdown','milestones','price-breakdown','notices'].forEach(id=>$(id).innerHTML='');
+    $('qual-badge').innerHTML=''; return;
+  }
+
+  const transOn=gsw('trans');
+  let langDays=[], mainPhases=[];
+
+  const src=$('src-lang').value;
+  const fuzzyPct2=(parseInt($('fuzzy-pct')?.value)||100)/100;
+  const translators=parseInt($('translator-count')?.value)||1;
+  const lqaScope=$('lqa-scope')?.value||'full';
+  const samplePct=(parseInt($('qc-sample-pct')?.value)||10)/100;
+
+  if(transOn){
+    langDays=langs.map(l=>{
+      const days=calcTransDays(src,l,effectiveWc*fuzzyPct2,translators,qlKey,curTransMode);
+      return{lang:l,name:LANGS[l].n,tier:LANGS[l].tier,days};
+    });
+    const maxT=Math.max(...langDays.map(r=>r.days));
+    ['trans','edit','qc','lqa','cul','iter','audio'].filter(k=>gsw(k)).forEach(k=>{
+      let days;
+      if(k==='trans') days=maxT;
+      else if(k==='lqa'){
+        // Use max days across all langs for timeline display
+        const perLangDaysArr=langs.map(l=>calcLqaDays(effectiveWc,LANGS[l]?.lqaGrp||'standard',lqaScope));
+        const maxLqaDays=Math.max(...perLangDaysArr);
+        days=lqaMode==='parallel'?maxLqaDays:perLangDaysArr.reduce((s,d)=>s+d,0);
+      } else if(k==='edit') days=calcProofDays(maxT);
+      else if(k==='qc') days=calcQcDays(maxT,samplePct);
+      else days=Math.max(1,Math.round(maxT*(ql.pf[k]||.2)));
+      mainPhases.push({key:k,name:PL[k],days,tag:PT[k]});
+    });
   } else {
-    totalDays = Math.max(textDays, lqaDays);
+    const lqaGrp=LANGS[langs[0]]?.lqaGrp||'standard';
+    const lqaBase=calcLqaDays(effectiveWc,lqaGrp,lqaScope);
+    const lqaTotalDays=lqaMode==='parallel'?lqaBase:lqaBase*langs.length;
+    ['edit','qc','lqa','cul','iter','audio'].filter(k=>gsw(k)).forEach(k=>{
+      let days;
+      if(k==='lqa') days=lqaTotalDays;
+      else if(k==='edit') days=calcProofDays(lqaTotalDays);
+      else if(k==='qc') days=calcQcDays(lqaTotalDays,samplePct);
+      else days=Math.max(1,Math.round(lqaTotalDays*(ql.pf[k]||.2)));
+      mainPhases.push({key:k,name:PL[k],days,tag:PT[k]});
+    });
+    const maxD=mainPhases.length?Math.max(...mainPhases.map(p=>p.days)):0;
+    langDays=langs.map(l=>({lang:l,name:LANGS[l].n,tier:LANGS[l].tier,days:maxD}));
   }
 
-  document.getElementById("result").innerHTML = `
-    📊 计算结果：<br><br>
-    文本工期：<b>${textDays.toFixed(1)} 天</b><br>
-    LQA工期：<b>${lqaDays.toFixed(1)} 天</b><br>
-    ------------------<br>
-    总工期：<b>${totalDays.toFixed(1)} 天</b><br>
-    （约 ${Math.ceil(totalDays)} 天交付）<br><br>
-    📌 说明：<br>
-    - 字数系数：${wordFactor.toFixed(2)}<br>
-    - 语言系数：${langFactor}<br>
-    - 并行系数：${parallel}<br>
-    - LQA模式：${mode === "serial" ? "串行" : "并行"}
-  `;
+  const termPhases=[];
+  if(gsw('term')){
+    const exD=parseFloat($('term-ex-days').value)||.5, trD=parseFloat($('term-tr-days').value)||4;
+    if(exD>0) termPhases.push({key:'termex',name:'术语提取',days:exD,tag:'pre'});
+    if(trD>0) termPhases.push({key:'termtr',name:'术语翻译',days:trD,tag:'pre'});
+  }
+  const allPhases=[...termPhases,...mainPhases];
+  const flowTotal=allPhases.reduce((s,p)=>s+p.days,0);
+  const buffer=Math.max(1,Math.round(flowTotal*.1));
+  const termTotal=termPhases.reduce((s,p)=>s+p.days,0);
+  const grandTotal=termTotal+langDays.reduce((s,r)=>s+r.days,0)+buffer;
+
+  // COSTS
+  const costs=[];
+  if(gsw('term')){
+    const chars=parseInt($('term-chars')?.value)||4000;
+    const src2=$('src-lang').value;
+    langs.forEach(l=>{
+      const rate=getLangRatePoint(src2,l,'freelance');
+      const cost=chars*rate;
+      costs.push({label:`术语翻译 — ${LANGS[l].n}`,formula:`${chars}字 × ¥${rate}/字（Freelancer）`,val:cost});
+    });
+  }
+  if(transOn){
+    const fuzzyPct=(parseInt($('fuzzy-pct')?.value)||100)/100;
+    const src=$('src-lang').value;
+    const isSrcZH=src==='zh-CN'||src==='zh-TW';
+    // ZH source: rate=¥/字, volume=字数; EN source: rate=¥/词, volume≈字数×0.6
+    const rawVol = isSrcZH ? effectiveWc : Math.round(effectiveWc*0.6);
+    const effVol = Math.round(rawVol * fuzzyPct);
+    const volUnit = isSrcZH ? '字' : '词';
+    if(curTransMode==='human'){
+      langs.forEach(l=>{
+        const rate=getTransRateForLang(l);
+        const vLabel=humanVendorType==='vendor'?'供应商':'Freelancer';
+        costs.push({label:`翻译 — ${LANGS[l].n}（${vLabel}）`,
+          formula:`${effVol.toLocaleString()}${volUnit} × ¥${rate}/${volUnit}（Fuzzy ${Math.round(fuzzyPct*100)}%）`,
+          val:effVol*rate});
+      });
+    } else {
+      const rate=getTransRateForLang(langs[0]);
+      const modeLabel=curTransMode==='mt'?'AI翻译':'AIPE（人工审核）';
+      if(rate>0) costs.push({label:`翻译（${modeLabel}）`,
+        formula:`${effVol.toLocaleString()}${volUnit} × ${langs.length}语种 × ¥${rate}/${volUnit}（Fuzzy ${Math.round(fuzzyPct*100)}%）`,
+        val:effVol*rate*langs.length});
+      else costs.push({label:`翻译（AI翻译）`,formula:'AI翻译（机器QA）— 人力成本 ¥0',val:0});
+    }
+  }
+  if(gsw('edit')){
+    const isSrcZH_e=($('src-lang').value)==='zh-CN'||($('src-lang').value)==='zh-TW';
+    const volE=isSrcZH_e?effectiveWc:Math.round(effectiveWc*0.6);
+    const vUnitE=isSrcZH_e?'字':'词';
+    const src_e=$('src-lang').value;
+    const pvLabel=proofVendorType==='vendor'?'供应商':proofVendorType==='internal'?'内部（本地化）':'Freelancer';
+    if(proofVendorType==='internal'){
+      costs.push({label:`校对（内部·本地化）`,formula:'内部校对 — 人力成本 ¥0',val:0});
+    } else {
+      langs.forEach(l=>{
+        const baseVendorRate=getLangRatePoint(src_e,l,proofVendorType);
+        const defProofRate=Math.round(baseVendorRate*0.5*1000)/1000;
+        const inputEl=document.getElementById('proof-tr-'+l);
+        const proofRate=inputEl?parseFloat(inputEl.value)||defProofRate:defProofRate;
+        costs.push({label:`校对 — ${LANGS[l].n}（${pvLabel}）`,
+          formula:`${pvLabel} ¥${fmtRate(baseVendorRate)}×50%=¥${fmtRate(defProofRate)}/${vUnitE} × ${volE.toLocaleString()}${vUnitE}`,
+          val:volE*proofRate});
+      });
+    }
+  }
+
+    if(gsw('qc')){
+    const samplePct=(parseInt($('qc-sample-pct')?.value)||10)/100;
+    const isSrcZH_q=($('src-lang').value)==='zh-CN'||($('src-lang').value)==='zh-TW';
+    const volQ=isSrcZH_q?effectiveWc:Math.round(effectiveWc*0.6);
+    const sampledVol=Math.round(volQ*samplePct);
+    const vUnitQ=isSrcZH_q?'字':'词';
+    langs.forEach(l=>{
+      const qcEl=document.getElementById('qc-tr-'+l);
+      const freelanceBase=getLangRatePoint($('src-lang').value,l,'freelance');
+      const defQcRate=Math.round(freelanceBase*0.6*1000)/1000;
+      const qcRate=qcEl?parseFloat(qcEl.value)||defQcRate:defQcRate;
+      costs.push({label:`QC — ${LANGS[l].n}`,
+        formula:`Freelancer ¥${fmtRate(freelanceBase)}×60%=¥${fmtRate(defQcRate)}/${vUnitQ} · ${Math.round(samplePct*100)}%抽检`,
+        val:sampledVol*qcRate});
+    });
+  }
+  if(gsw('lqa')){
+    const lqaScopeC=$('lqa-scope')?.value||'full';
+    const hoursDay=parseInt($('lqa-hours-day')?.value)||8;
+    const execMode=lqaMode==='parallel'?'并行':'串行';
+    const typeLabel=lqaTesterType==='vendor'?'供应商':lqaTesterType==='internal'?'内部':'个人兼职';
+    if(lqaTesterType==='internal'){
+      costs.push({label:`LQA（内部 · ${execMode}）`,formula:'内部测试 — 人力成本 ¥0',val:0});
+    } else {
+      langs.forEach(l=>{
+        const perLqaDays=calcLqaDays(effectiveWc, LANGS[l]?.lqaGrp||'standard', lqaScopeC);
+        const hourRate=parseFloat(document.getElementById('lqa-tr-'+l)?.value)||getLqaRateMid(l,lqaTesterType);
+        const totalHours=perLqaDays*hoursDay;
+        costs.push({label:`LQA — ${LANGS[l].n}（${typeLabel} · ${execMode}）`,
+          formula:`${perLqaDays}天×${hoursDay}h=${totalHours}h × ¥${hourRate}/人/h`,
+          val:totalHours*hourRate});
+      });
+    }
+  }
+  const totalCost=costs.reduce((s,c)=>s+c.val,0);
+  const milestones=buildMS(allPhases,buffer);
+  lastResult={qlKey,ql,wc,effectiveWc,kw,langs,langDays,allPhases,mainPhases,termPhases,buffer,grandTotal,costs,totalCost,milestones,termTotal,transOn};
+  renderResult(lastResult);
+  updateSums(lastResult);
+  updateLqaHint();
 }
 
-</script>
+function buildMS(phases,buffer){
+  const cols={pre:'#f5a623',core:'#00c2ff',post:'#00e5a0'};
+  let day=0;
+  const ms=phases.map(p=>{day+=p.days;return{name:p.name+'完成',day:Math.round(day*10)/10,color:cols[p.tag]||'#94a3b8'};});
+  day+=buffer; ms.push({name:'可交付（含10%缓冲）',day:Math.round(day*10)/10,color:'#64748b'});
+  return ms;
+}
 
+function updateSums(r){
+  const ql=QL[r.qlKey];
+  const ctLabel={'light':'轻度','medium':'中重度','heavy':'强IP'}[termContentType]||'中重度';
+  $('s1-sum').textContent=`${ql.label}级 · ${ctLabel} · ${Math.round(r.effectiveWc/1000)}k字`;
+  $('s2-sum').textContent=`${r.langs.length}个目标语言`;
+  const tcnt=parseInt($('term-count')?.value)||0;
+  const ttype=TERM_CONTENT_TYPES[termContentType]?.label||'';
+  $('s3-sum').textContent=gsw('term')?`${tcnt.toLocaleString()}条 · ${ttype}`:'跳过';
+  $('s4-sum').textContent=r.transOn?(curTransMode==='mt'?'AI翻译':curTransMode==='aipe'?'AIPE':'人工翻译'):'已完成';
+  $('s5-sum').textContent=gsw('edit')?'已开启':'跳过';
+  const lqaTypeShort=lqaTesterType==='vendor'?'供应商':lqaTesterType==='internal'?'内部':'兼职';
+  const lqaScope6=$('lqa-scope')?.value||'full';
+  const scopeLabel={'smoke':'Smoke','standard':'Standard','full':'Full'}[lqaScope6]||'Full';
+  $('s6-sum').textContent=gsw('lqa')?`${scopeLabel}·${lqaMode==='parallel'?'并行':'串行'}·${lqaTypeShort}`:'跳过';
+
+}
+
+function renderResult(r){
+  const ql=r.ql;
+
+  // ── 质量等级徽章 ──
+  $('qual-badge').innerHTML=`<span class="ql-badge ${ql.badge}">${ql.label} — ${ql.desc}</span>`;
+  $('mode-label').textContent=`${r.transOn?(curTransMode==='mt'?'AI翻译':curTransMode==='aipe'?'AIPE（人工审核）':'人工翻译'):'翻译已完成'} · ${r.langs.length}语种 · ${gsw('simship')?'SimShip并行':'串行'}`;
+
+  // ── 指标卡 ──
+  // ── Build dashboard data ──
+  const termExDays  = r.termPhases.find(p=>p.key==='termex')?.days||0;
+  const termTrDays  = r.termPhases.find(p=>p.key==='termtr')?.days||0;
+  const termTotalD  = termExDays + termTrDays;
+  const transDaysSum= r.mainPhases.find(p=>p.key==='trans')?.days||0;
+  const proofDaysSum= r.mainPhases.find(p=>p.key==='edit')?.days||0;
+  const qcDaysSum   = r.mainPhases.find(p=>p.key==='qc')?.days||0;
+  const lqaDaysSum  = r.mainPhases.find(p=>p.key==='lqa')?.days||0;
+
+  // Per-phase costs
+  const phaseCostMap = {};
+  r.costs.forEach(c=>{
+    let g='其他';
+    if(c.label.startsWith('术语')) g='术语';
+    else if(c.label.startsWith('翻译')) g='翻译';
+    else if(c.label.startsWith('校对')) g='校对';
+    else if(c.label.startsWith('QC')) g='QC';
+    else if(c.label.startsWith('LQA')) g='LQA';
+    phaseCostMap[g]=(phaseCostMap[g]||0)+c.val;
+  });
+
+  const dashPhases = [
+    {key:'术语', days:termTotalD,  color:'var(--amber)'},
+    {key:'翻译', days:transDaysSum, color:'var(--accent)'},
+    {key:'校对', days:proofDaysSum, color:'var(--green)'},
+    {key:'QC',   days:qcDaysSum,   color:'var(--amber)'},
+    {key:'LQA',  days:lqaDaysSum,  color:'var(--purple)'},
+  ].filter(p=>p.days>0);
+
+  const dotStyle = (color) => `width:8px;height:8px;border-radius:50%;background:${color};box-shadow:0 0 4px ${color};flex-shrink:0;display:inline-block`;
+
+  $('metrics').innerHTML=`
+    <div class="metric m-acc" style="grid-column:1/-1;padding:14px 16px">
+      <div class="dash-inner" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div class="metric-val">${r.grandTotal}<span style="font-size:14px;margin-left:3px">天</span></div>
+            <div class="metric-lbl" style="font-size:11px">总工期</div>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px">
+            <div style="font-family:var(--mono);font-size:20px;color:var(--green);font-weight:600">${fmtPrice(r.totalCost)}</div>
+            <div class="metric-lbl" style="font-size:11px">报价估算</div>
+          </div>
+        </div>
+        <div class="dash-phases" style="display:flex;flex-direction:column;gap:4px;min-width:240px;flex:1">
+          ${dashPhases.map(p=>{
+            const cost=phaseCostMap[p.key]||0;
+            return `<div class="dash-phase-row" style="display:flex;align-items:center;gap:8px">
+              <span style="${dotStyle(p.color)}"></span>
+              <span style="font-family:var(--mono);font-size:11px;color:var(--t3);min-width:36px">${p.key}</span>
+              <span style="font-family:var(--mono);font-size:11px;color:var(--t2);min-width:48px">${p.days} 天</span>
+              <div class="dash-bar-wrap" style="flex:1;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;min-width:40px">
+                <div style="height:100%;width:${Math.round(p.days/r.grandTotal*100)}%;background:${p.color};opacity:0.7;border-radius:2px"></div>
+              </div>
+              <span class="dash-cost" style="font-family:var(--mono);font-size:11px;color:${cost>0?'var(--t2)':'var(--t3)'};min-width:100px;text-align:right">${cost>0?fmtPrice(cost):'—'}</span>
+            </div>`;
+          }).join('')}
+          <div style="display:flex;align-items:center;gap:8px;border-top:1px solid var(--line2);margin-top:2px;padding-top:4px">
+            <span style="width:8px;flex-shrink:0"></span>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--t3);min-width:36px"></span>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--t3);min-width:52px">${r.langs.length} 语种</span>
+            <div style="flex:1"></div>
+            <span style="font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:600;min-width:90px;text-align:right">${fmtPrice(r.totalCost)}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  // ── 提示 ──
+  const notices=[];
+  if(r.termTotal>0) notices.push({c:'ng',m:`术语前置 ${Math.round(r.termTotal*2)/2} 天，全量翻译在术语完成后启动`});
+  if(!r.transOn) notices.push({c:'ni',m:'翻译已完成模式 — 仅计算后续流程工期'});
+  if(r.langs.length>4&&lqaMode!=='parallel') notices.push({c:'nw',m:'串行模式下多语种工期线性叠加，建议切换为并行模式'});
+  $('notices').innerHTML=notices.map(n=>`<div class="notice ${n.c}">${n.m}</div>`).join('');
+
+  // ── 甘特图时间线 ──
+  const maxP=Math.max(...r.allPhases.map(p=>p.days),1);
+  $('phases').innerHTML=r.allPhases.length?`
+    <div style="margin-bottom:8px;display:flex;gap:12px;flex-wrap:wrap">
+      ${[...new Set(r.allPhases.map(p=>p.tag))].map(tag=>`
+        <span style="font-family:var(--mono);font-size:10px;display:flex;align-items:center;gap:4px;color:var(--t3)">
+          <span style="width:8px;height:8px;border-radius:1px;background:${PC[r.allPhases.find(p=>p.tag===tag).key]};display:inline-block"></span>
+          ${TL[tag]}
+        </span>`).join('')}
+    </div>
+    ${r.allPhases.map(p=>`
+    <div class="pbar">
+      <div class="pbar-head">
+        <div class="pbar-name">${p.name}<span class="pbar-tag tag-${p.tag}">${TL[p.tag]}</span></div>
+        <div class="pbar-days">${Math.round(p.days*10)/10} 天</div>
+      </div>
+      <div class="pbar-track">
+        <div class="pbar-fill" style="width:${Math.round(p.days/maxP*100)}%;background:${PC[p.key]};box-shadow:0 0 6px ${PC[p.key]}40"></div>
+      </div>
+    </div>`).join('')}`:`<div class="empty">// 无激活阶段</div>`;
+
+  // ── 语种工期 & 报价合并表 ──
+  // Group costs by lang
+  const langCostMap={};
+  r.costs.forEach(c=>{
+    const match=c.label.match(/—\s*(.+?)（|—\s*(.+)$/);
+    const langName=match?(match[1]||match[2]).trim():null;
+    if(langName){
+      if(!langCostMap[langName]) langCostMap[langName]=0;
+      langCostMap[langName]+=c.val;
+    }
+  });
+  const maxL=Math.max(...r.langDays.map(x=>x.days),1);
+  const maxLc=Math.max(...Object.values(langCostMap),1);
+  const thS="font-family:var(--mono);font-size:10px;color:var(--t3);padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;font-weight:400;letter-spacing:.05em";
+  const thR="font-family:var(--mono);font-size:10px;color:var(--t3);padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;font-weight:400;letter-spacing:.05em";
+  $('lang-breakdown').innerHTML=r.langDays.length?(()=>{
+  // Build per-lang phase cost breakdown
+  const langPhaseMap={};
+  r.costs.forEach(c=>{
+    // Extract lang name from label like "翻译 — 日语（Freelancer）"
+    const m=c.label.match(/[—－]\s*(.+?)(?:（|$)/);
+    if(m){
+      const ln=m[1].trim();
+      if(!langPhaseMap[ln]) langPhaseMap[ln]=[];
+      langPhaseMap[ln].push({label:c.label.replace(/[—－]\s*.+$/,'').trim()||c.label, val:c.val});
+    }
+    // Also catch term costs "术语翻译 — 日语"
+    const m2=c.label.match(/^(.+?)[—－]\s*(.+)$/);
+    if(m2&&!m){
+      const ln=m2[2].trim();
+      const phase=m2[1].trim();
+      if(!langPhaseMap[ln]) langPhaseMap[ln]=[];
+      langPhaseMap[ln].push({label:phase, val:c.val});
+    }
+  });
+  // Also map term costs which use lang name directly
+  r.costs.forEach(c=>{
+    if(c.label.startsWith('术语翻译 —')){
+      const ln=c.label.replace('术语翻译 — ','').trim();
+      if(!langPhaseMap[ln]) langPhaseMap[ln]=[];
+      if(!langPhaseMap[ln].find(x=>x.label==='术语翻译'))
+        langPhaseMap[ln].unshift({label:'术语翻译',val:c.val});
+    }
+  });
+
+  return `<table style="width:100%;border-collapse:collapse">
+    <thead><tr>
+      <th style="${thS}">语种</th>
+      <th style="${thS}">翻译工期</th>
+      <th style="${thS}">工期占比</th>
+      <th style="${thR}">预估费用</th>
+    </tr></thead>
+    <tbody>
+      ${r.langDays.map(d=>{
+        const cost=langCostMap[d.name]||0;
+        const phases=langPhaseMap[d.name]||[];
+        const rowId='lang-detail-'+d.name.replace(/[^a-zA-Z0-9]/g,'');
+        return `<tr style="border-bottom:${phases.length?'none':'1px solid var(--line2)'};cursor:${phases.length?'pointer':'default'}"
+          onclick="${phases.length?`document.getElementById('${rowId}').style.display=document.getElementById('${rowId}').style.display==='none'?'table-row':'none'`:''}"
+          onmouseover="this.style.background='${phases.length?'var(--bg2)':''}'"
+          onmouseout="this.style.background=''">
+          <td style="padding:7px 8px;font-size:12px;color:var(--t2)">
+            ${phases.length?`<span style="font-family:var(--mono);font-size:9px;color:var(--t3);margin-right:4px">▶</span>`:''}${d.name}
+          </td>
+          <td style="padding:7px 8px;font-family:var(--mono);font-size:12px">${d.days} 天</td>
+          <td style="padding:7px 8px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden">
+                <div style="height:100%;width:${Math.round(d.days/maxL*100)}%;background:var(--accent);border-radius:2px"></div>
+              </div>
+              <span style="font-family:var(--mono);font-size:10px;color:var(--t3);min-width:28px">${Math.round(d.days/maxL*100)}%</span>
+            </div>
+          </td>
+          <td style="padding:7px 8px;text-align:right;font-family:var(--mono);font-size:12px;color:${cost>0?'var(--amber)':'var(--t3)'}">
+            ${cost>0?fmtPrice(cost):'—'}
+          </td>
+        </tr>
+        ${phases.length?`<tr id="${rowId}" style="display:none;background:var(--bg1)">
+          <td colspan="4" style="padding:0 0 4px 28px">
+            <table style="width:100%;border-collapse:collapse">
+              ${phases.map(p=>`<tr>
+                <td style="padding:4px 8px;font-family:var(--mono);font-size:10px;color:var(--t3);width:50%">${p.label}</td>
+                <td style="padding:4px 8px;text-align:right;font-family:var(--mono);font-size:10px;color:${p.val>0?'var(--t2)':'var(--t3)'}">${p.val>0?fmtPrice(p.val):'¥0'}</td>
+              </tr>`).join('')}
+              <tr style="border-top:1px solid var(--line2)">
+                <td style="padding:5px 8px;font-family:var(--mono);font-size:10px;color:var(--t3)">小计</td>
+                <td style="padding:5px 8px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:600">${fmtPrice(phases.reduce((s,p)=>s+p.val,0))}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>`:''}`;
+      }).join('')}
+    </tbody>
+    ${r.totalCost>0?`<tfoot><tr>
+      <td colspan="3" style="padding:7px 8px;font-family:var(--mono);font-size:11px;color:var(--t3)">合计（${r.langs.length}个语种）</td>
+      <td style="padding:7px 8px;text-align:right;font-family:var(--mono);font-size:13px;color:var(--accent);font-weight:600">${fmtPrice(r.totalCost)}</td>
+    </tr></tfoot>`:''}
+  </table>`;
+})():`<div class="empty">// 请先选择目标语种</div>`;
+
+  // ── 里程碑 ──
+  $('milestones').innerHTML=r.milestones.map(m=>`
+    <div class="ms-item">
+      <div class="ms-dot" style="background:${m.color};box-shadow:0 0 4px ${m.color}"></div>
+      <div><div class="ms-name">${m.name}</div><div class="ms-day">第 ${m.day} 天</div></div>
+    </div>`).join('');
+
+  // ── 报价明细（两级：阶段汇总 + 展开语种明细） ──
+  const phaseGroups={};
+  const phaseOrder=['术语','翻译','校对','QC','LQA','文化审查','优化迭代','音频'];
+  r.costs.forEach(c=>{
+    let group='其他';
+    if(c.label.startsWith('术语')) group='术语';
+    else if(c.label.startsWith('翻译')) group='翻译';
+    else if(c.label.startsWith('校对')) group='校对';
+    else if(c.label.startsWith('QC')) group='QC';
+    else if(c.label.startsWith('LQA')) group='LQA';
+    else if(c.label.startsWith('文化')) group='文化审查';
+    else if(c.label.startsWith('优化')) group='优化迭代';
+    else if(c.label.startsWith('音频')) group='音频';
+    if(!phaseGroups[group]) phaseGroups[group]={total:0,items:[]};
+    phaseGroups[group].total+=c.val;
+    phaseGroups[group].items.push(c);
+  });
+
+  const groupColors={'术语':'var(--amber)','翻译':'var(--accent)','校对':'var(--green)','QC':'var(--amber)','LQA':'var(--purple)','文化审查':'var(--pink)','优化迭代':'var(--t3)','音频':'var(--blue)','其他':'var(--t3)'};
+
+  $('price-breakdown').innerHTML=r.costs.length?
+    Object.entries(phaseGroups).map(([group,data])=>`
+      <div style="margin-bottom:2px">
+        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'"
+          style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg2);border-radius:3px;cursor:pointer;transition:background .15s"
+          onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='var(--bg2)'">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:3px;height:14px;background:${groupColors[group]||'var(--t3)'};border-radius:2px;display:inline-block"></span>
+            <span style="font-family:var(--mono);font-size:12px;color:var(--t2)">${group}</span>
+            <span style="font-family:var(--mono);font-size:10px;color:var(--t3)">${data.items.length}项</span>
+          </div>
+          <span style="font-family:var(--mono);font-size:13px;color:${data.total>0?'var(--accent)':'var(--t3)'}">
+            ${data.total>0?fmtPrice(data.total):'¥0'}
+          </span>
+        </div>
+        <div style="display:none;padding:4px 0 4px 16px">
+          ${data.items.map(c=>`
+            <div class="price-item" style="font-size:11px">
+              <div><div class="pl-name" style="font-size:11px">${c.label}</div><div class="pl-formula">${c.formula}</div></div>
+              <div class="pv" style="font-size:11px">${fmtPrice(c.val)}</div>
+            </div>`).join('')}
+        </div>
+      </div>`).join('')+
+    (r.totalCost>0?`<div class="price-total" style="margin-top:8px"><span class="pt-lbl">合计（${r.langs.length}个语种）</span><span class="pt-val">${fmtPrice(r.totalCost)}</span></div>`:'')
+  :`<div class="empty">// 无可计算报价项</div>`;
+}
+
+function exportCSV(){
+  if(!lastResult)return;
+  const rows=[['里程碑节点','第N天']];
+  lastResult.milestones.forEach(m=>rows.push([m.name,m.day]));
+  const blob=new Blob(['\uFEFF'+rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='milestones.csv';a.click();
+}
+function exportMD(){
+  if(!lastResult)return;
+  const r=lastResult,ql=r.ql;
+  const lines=[
+    `# 本地化排期摘要`,``,
+    `**质量等级**：${ql.label} — ${ql.desc}`,`**翻译方式**：${r.transOn?curTransMode:'翻译已完成'}`,
+    `**源文本量**：${r.wc.toLocaleString()}字符（净翻译量 ${Math.round(r.effectiveWc/1000)}k）`,
+    `**目标语种**：${r.langs.length}个（${r.langs.map(l=>LANGS[l].n).join('、')}）`,
+    r.termTotal>0?`**术语前置**：${Math.round(r.termTotal*2)/2}天`:'',
+    `**并行模式**：${gsw('simship')?'SimShip并行':'串行'}`,``,
+    `## 总工期`,`**${r.grandTotal} 日历日**（含10%缓冲）`,``,
+    `## 阶段分解`,...r.allPhases.map(p=>`- [${TL[p.tag]}] ${p.name}：${Math.round(p.days*10)/10}天`),``,
+    `## 语种工期`,...r.langDays.map(d=>`- ${d.name}（T${d.tier}）：${d.days}天`),``,
+    `## 里程碑`,...r.milestones.map(m=>`- 第${m.day}天：${m.name}`),``,
+    r.totalCost>0?`## 报价估算\n合计约 **¥${Math.round(r.totalCost).toLocaleString()}**（${r.langs.length}个语种）`:'',
+    `\n> 本摘要由 L10N Scheduler 自动生成，仅供内部参考。`
+  ].filter(l=>l!==undefined&&l!==null);
+  const blob=new Blob([lines.join('\n')],{type:'text/markdown;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='localization_schedule.md';a.click();
+}
+
+// doCalc wrapper
+function doCalc(){
+  const btn=$('calc-btn-txt');
+  btn.textContent='⟳ 计算中...';
+  setTimeout(()=>{
+    calc();
+    btn.textContent='▶ 重新计算';
+    $('calc-hint').textContent='';
+  },30);
+}
+
+function markDirty(){
+  $('calc-hint').textContent='参数已变更，请点击重新计算';
+  $('calc-btn-txt').textContent='▶ 开始计算';
+}
+
+function getLqaRate(tgt, testerType){
+  // Unit: ¥/人/小时
+  // [freelancer, vendor]
+  const RATES = {
+    'zh-TW': [100, 200],
+    'ko':    [100, 250],
+    'ja':    [150, 260],
+    'id':    [120, 230],
+    'th':    [120, 230],
+    'vi':    [120, 230],
+    'en':    [100, 260],
+    'ru':    [120, 250],
+    'de':    [140, 290],
+    'fr':    [140, 290],
+    'pt-BR': [140, 290],
+    'es':    [140, 290],
+    'tr':    [150, 250],
+    'it':    [150, 290],
+    'ar':    [160, 250],
+    'pl':    [160, 290],
+    'zh-CN': [100, 200],
+  };
+  if(testerType==='internal') return [0,0];
+  const pair = RATES[tgt] || [120, 250];
+  return testerType==='vendor' ? [pair[1], pair[1]] : [pair[0], pair[0]];
+}
+
+function getLqaRateMid(tgt, testerType){
+  const r = getLqaRate(tgt, testerType||lqaTesterType||'vendor');
+  return r[0];
+}
+
+
+function setLqaScope(scope){
+  document.querySelectorAll('#lqa-scope-grp .rbtn').forEach(b=>{
+    b.className='rbtn'+(b.dataset.v===scope?' on':'');
+  });
+  const si=$('lqa-scope'); if(si) si.value=scope;
+  renderLqaRateArea();
+  updateLqaHint();
+}
+
+function setLqaTester(type){
+  lqaTesterType=type;
+  document.querySelectorAll('#lqa-tester-grp .rbtn').forEach(b=>{
+    b.className='rbtn'+(b.dataset.v===type?' on':'');
+  });
+  renderLqaRateArea();
+  updateLqaHint();
+}
+
+function renderLqaRateArea(){
+  const el=$('lqa-rate-area');
+  if(!el) return;
+  if(lqaTesterType==='internal'){
+    el.innerHTML=`<div class="notice ng" style="font-size:11px">内部测试人员 — 人力成本计为 ¥0，仅计算工期。</div>`;
+    return;
+  }
+  const langs=getLangs();
+  if(!langs.length){el.innerHTML='<div class="empty">// 请先选择目标语言</div>';return;}
+  const typeLabel=lqaTesterType==='vendor'?'供应商':'个人兼职';
+  const hoursDay=parseInt($('lqa-hours-day')?.value)||8;
+  const wc4=parseInt($('wc')?.value)||100000;
+  const tm4=parseInt($('tm')?.value)/100||0;
+  const lqaGrp4=langs.length?LANGS[langs[0]]?.lqaGrp||'standard':'standard';
+  const lqaScope4=$('lqa-scope')?.value||'full';
+  const autoDays=calcLqaDays(wc4*(1-tm4),lqaGrp4,lqaScope4);
+  const thS="font-family:var(--mono);font-size:10px;color:var(--t3);text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);letter-spacing:.05em;font-weight:400";
+  const thR="font-family:var(--mono);font-size:10px;color:var(--t3);text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);letter-spacing:.05em;font-weight:400";
+  const rows=langs.map(l=>{
+    const d=LANGS[l];
+    const defRate=getLqaRateMid(l, lqaTesterType);
+    return{l,d,defRate,val:defRate};
+  });
+  el.innerHTML=`
+
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="${thS}">语种</th>
+        <th style="${thS}">参考单价</th>
+        <th style="${thS}">每日费用（×${hoursDay}h）</th>
+        <th style="${thR}">实际单价（¥/人/h）</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(({l,d,defRate,val})=>`
+        <tr class="lang-rate-row">
+          <td style="font-size:12px;color:var(--t2);padding:6px 8px">${d.n}</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--t3);padding:6px 8px">¥${defRate}/h</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--amber);padding:6px 8px">¥${Math.round(val*hoursDay)}/天</td>
+          <td style="padding:4px 8px;text-align:right">
+            <input type="number" id="lqa-tr-${l}" value="${val}" min="0" step="10"
+              style="background:var(--bg3);border:1px solid var(--line2);border-radius:2px;color:var(--t1);font-family:var(--mono);font-size:12px;padding:4px 8px;width:80px;outline:none;text-align:right"
+              onfocus="this.style.borderColor='var(--accent)'"
+              onblur="this.style.borderColor='var(--line2)'">
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--t3)">批量填入：</span>
+      <span class="stag" onclick="fillLqaRates('def')">默认参考价</span>
+    </div>`;
+}
+
+
+function fillLqaRates(){
+  getLangs().forEach(l=>{
+    const el=document.getElementById('lqa-tr-'+l);
+    if(!el) return;
+    el.value=getLqaRateMid(l, lqaTesterType);
+  });
+}
+
+function setHumanVendor(type){
+  humanVendorType=type;
+  renderTransRateArea();
+}
+
+function fillAllRates(mode){
+  getLangs().forEach(l=>{
+    const el=document.getElementById('tr-'+l);
+    if(!el) return;
+    const src=$('src-lang').value;
+    const r=getLangRate(src,l,humanVendorType);
+    const pt=getLangRatePoint(src,l,humanVendorType);
+    el.value=mode==='low'?r[0]:mode==='high'?r[1]:pt;
+  });
+}
+
+function runCalc(){
+  const hint=$('calc-hint');
+  if(hint) hint.textContent='计算中…';
+  setTimeout(()=>{
+    calc();
+    if(hint) hint.textContent='上次计算：'+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  },80);
+}
+
+// init
+onSrcChange();renderLangRef();renderTransRateArea();updateSuggestTags();autoLqaDays();renderQlHint();
+setTransMode('aipe');setLqaMode('parallel');setLqaTester('vendor');setLqaScope('full');setTermType('medium');setProofVendor('freelance');
+applyQlDefaults();
+setTimeout(()=>{updateEditRateHint();renderQcRateTable();},100);
+$('calc-hint').textContent='配置完成后点击「开始计算」';
+document.querySelectorAll('#langsel .tgl').forEach(t=>{
+  t.addEventListener('click',()=>{
+    t.classList.toggle('on');
+    renderTransRateArea();
+    renderLqaRateArea();
+    renderQlHint();
+    setTimeout(()=>{updateEditRateHint();renderQcRateTable();renderTermCostTable();},50);
+  });
+});
+</script>
 </body>
 </html>
