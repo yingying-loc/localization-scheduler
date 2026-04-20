@@ -1429,7 +1429,9 @@ function calc(){
   const flowTotal=allPhases.reduce((s,p)=>s+p.days,0);
   const buffer=Math.max(1,Math.round(flowTotal*.1));
   const termTotal=termPhases.reduce((s,p)=>s+p.days,0);
-  const grandTotal=termTotal+langDays.reduce((s,r)=>s+r.days,0)+buffer;
+  // grandTotal = termTotal (pre, serial) + mainPhases total (serial pipeline) + buffer
+  const mainTotal=mainPhases.reduce((s,p)=>s+p.days,0);
+  const grandTotal=termTotal+mainTotal+buffer;
 
   // COSTS
   const costs=[];
